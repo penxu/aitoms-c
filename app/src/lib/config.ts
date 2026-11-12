@@ -9,6 +9,11 @@ export const config = {
   portRangeMin: Number(process.env.PORT_RANGE_MIN ?? 4000),
   portRangeMax: Number(process.env.PORT_RANGE_MAX ?? 4999),
   chatModel: process.env.CHAT_MODEL ?? "gpt-4o",
+  /** 各生成阶段所用模型（可按用途分别配置） */
+  specModel: process.env.SPEC_MODEL ?? "gpt-4o",
+  planModel: process.env.PLAN_MODEL ?? "gpt-4o",
+  buildModel: process.env.BUILD_MODEL ?? "gpt-4o-mini",
+  repairModel: process.env.REPAIR_MODEL ?? "gpt-4o",
   /** 单条命令最长执行时间 */
   commandTimeoutMs: Number(process.env.COMMAND_TIMEOUT_MS ?? 120_000),
   /** 工具返回内容的最大字符数 */
