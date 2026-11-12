@@ -98,6 +98,13 @@ export async function saveNodeModulesCache(projectId: string): Promise<void> {
   });
 }
 
+/** 目录已有内容但没有 .atoms/：视为用户已有成果，禁止覆盖 */
+export function hasScaffoldConflict(projectId: string): boolean {
+  const root = ensureProjectRoot(projectId);
+  const entries = fs.readdirSync(root).filter((name) => name !== ".git");
+  return entries.length > 0 && !entries.includes(".atoms");
+}
+
 export async function scaffoldProject(projectId: string): Promise<ScaffoldResult> {
   const root = ensureProjectRoot(projectId);
   const source = templateDir();
@@ -105,11 +112,10 @@ export async function scaffoldProject(projectId: string): Promise<ScaffoldResult
     throw new Error(`模板目录不存在：${source}`);
   }
 
-  const entries = fs.readdirSync(root).filter((name) => name !== ".git");
-  const hasAtoms = entries.includes(".atoms");
-  if (entries.length > 0 && !hasAtoms) {
+  if (hasScaffoldConflict(projectId)) {
     throw new ScaffoldConflictError(projectId);
   }
+  const entries = fs.readdirSync(root).filter((name) => name !== ".git");
   const action: ScaffoldResult["action"] = entries.length === 0 ? "copied" : "merged";
 
   let filesWritten = 0;
