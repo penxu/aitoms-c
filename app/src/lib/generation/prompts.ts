@@ -1,5 +1,5 @@
 /**
- * 各阶段提示词。当前含 SPEC / PLAN 阶段，后续阶段在此追加。
+ * 各阶段提示词。当前含 SPEC / PLAN / BUILD 阶段，后续阶段在此追加。
  */
 
 export const SPEC_SYSTEM_PROMPT = `你是产品经理。把用户的一句话需求整理成可直接用于开发的需求规格。
@@ -43,4 +43,56 @@ ${spec}
 ${templateFiles.map((file) => `- ${file}`).join("\n")}
 
 请输出 JSON 格式的实现计划。`;
+}
+
+export const BUILD_SYSTEM_PROMPT = `你是工程师。根据需求规格、分层约定与依赖文件，写出指定文件的完整内容。
+
+输出要求：
+1. 只输出该文件的完整内容，不要任何解释、不要 Markdown 代码块围栏。
+2. 严格遵循 .atoms/CONVENTIONS.md 的目录分层与写法约定。
+3. 页面跳转只能使用 next/link 或 useRouter，禁止手写以 / 开头的绝对地址（应用部署在子路径下）。
+4. 交互组件按需添加 "use client"；优先复用 components/ui/ 下的 Button / Card / Input。
+5. 需要持久化时，在 lib/db/index.ts 的 DDL 数组追加幂等 CREATE TABLE IF NOT EXISTS 语句，并通过 getDb() 访问数据库，不要引入 ORM 迁移命令。
+6. 输出必须是可直接通过 next build 的 TypeScript/TSX，不要引用未安装的依赖。`;
+
+export interface BuildFilePromptInput {
+  path: string;
+  action: "create" | "modify";
+  purpose: string;
+  spec: string;
+  conventions: string;
+  dependencies: { path: string; content: string }[];
+  currentContent?: string;
+}
+
+export function buildFilePrompt(input: BuildFilePromptInput): string {
+  const parts: string[] = [
+    `## 待实现文件
+路径：${input.path}
+动作：${input.action === "modify" ? "在现有内容基础上改写" : "新建"}
+作用：${input.purpose}`,
+    `## 需求规格
+${input.spec}`,
+    `## 分层约定（.atoms/CONVENTIONS.md）
+${input.conventions}`,
+  ];
+
+  if (input.dependencies.length > 0) {
+    parts.push(
+      `## 依赖文件内容（已实现，可直接引用）
+${input.dependencies
+  .map((dep) => `### ${dep.path}\n\`\`\`\n${dep.content}\n\`\`\``)
+  .join("\n\n")}`,
+    );
+  }
+
+  if (input.currentContent !== undefined) {
+    parts.push(`## 当前文件内容（在此基础上修改）
+\`\`\`
+${input.currentContent}
+\`\`\``);
+  }
+
+  parts.push(`请直接输出 ${input.path} 的完整文件内容。`);
+  return parts.join("\n\n");
 }
