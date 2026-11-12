@@ -16,10 +16,14 @@ interface ProjectRow {
 type PanelTab = "discover" | "projects" | "templates";
 
 const AGENTS = [
-  { name: "Mike", role: "团队负责人", cls: "from-[#4267ff] to-[#7b9bff]" },
-  { name: "Emma", role: "产品经理", cls: "from-[#b88ade] to-[#e2c6f7]" },
-  { name: "Bob", role: "架构师", cls: "from-[#2dbb5c] to-[#8fe0aa]" },
-  { name: "Alex", role: "工程师", cls: "from-[#ff7fa7] to-[#ffc4d4]" },
+  { name: "Mike", role: "团队领导", cls: "from-[#4267ff] to-[#7b9bff]", joined: true },
+  { name: "Adrian", role: "广告投放", cls: "from-[#ff9f45] to-[#ffd39b]", joined: false },
+  { name: "Sarah", role: "SEO", cls: "from-[#ff7fa7] to-[#ffc4d4]", joined: false },
+  { name: "Emma", role: "产品经理", cls: "from-[#b88ade] to-[#e2c6f7]", joined: true },
+  { name: "Bob", role: "架构师", cls: "from-[#2dbb5c] to-[#8fe0aa]", joined: true },
+  { name: "Alex", role: "工程师", cls: "from-[#37b4c9] to-[#9fe3ee]", joined: true },
+  { name: "David", role: "数据分析", cls: "from-[#f0b429] to-[#ffdf9e]", joined: false },
+  { name: "Iris", role: "深度研究", cls: "from-[#e0619e] to-[#ffb3d1]", joined: false },
 ];
 
 const PLACEHOLDERS = [
@@ -207,7 +211,7 @@ export function DashboardPage() {
               {AGENTS.map((agent, index) => (
                 <span
                   key={agent.name}
-                  title={`${agent.name} · ${agent.role}`}
+                  title={`${agent.name} · ${agent.role}${agent.joined ? "" : " · 即将上线"}`}
                   className={`flex h-[46px] w-[46px] items-center justify-center rounded-full bg-gradient-to-br text-[15px] font-semibold text-white ring-2 ring-[#f6f6f6] ${agent.cls} ${
                     index === 0 ? "" : "-ml-3"
                   }`}
