@@ -84,9 +84,15 @@ async function buildAndStart(ctx: StageContext): Promise<AttemptResult> {
   ctx.emit({ type: "stage", stage: "verify", status: "running" });
 
   ctx.log("info", "执行 pnpm build");
+  // 清掉上一轮（可能是失败轮次）留下的产物，避免旧缓存干扰本次构建
+  await runCommand(ctx.projectId, "rm -rf .next", {
+    timeoutMs: BUILD_TIMEOUT_MS,
+    signal: ctx.signal,
+  });
   const build = await runCommand(ctx.projectId, "pnpm build", {
     timeoutMs: BUILD_TIMEOUT_MS,
     signal: ctx.signal,
+    env: { NODE_ENV: "production" },
   });
   if (build.aborted) return { status: "aborted" };
   if (build.exitCode !== 0) {

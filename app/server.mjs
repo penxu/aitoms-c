@@ -3,6 +3,7 @@ import net from "node:net";
 import path from "node:path";
 import fs from "node:fs";
 import next from "next";
+import nextEnv from "@next/env";
 
 /**
  * 自定义服务器：
@@ -10,8 +11,11 @@ import next from "next";
  * 2. 自行代理 /p/{projectId} 的 WebSocket Upgrade（HMR 等）
  */
 
-const port = Number(process.env.PORT || 3000);
 const dev = process.env.NODE_ENV !== "production";
+// 自定义服务器不会自动读取 .env*，需显式加载（否则模型凭据等变量缺失）
+nextEnv.loadEnvConfig(process.cwd(), dev);
+
+const port = Number(process.env.PORT || 3000);
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
@@ -74,7 +78,8 @@ async function main() {
     }
 
     const projectId = match[1];
-    const rest = match[2] || "/";
+    // 项目注入了 basePath，HMR 等 WebSocket 路径需原样透传前缀
+    const rest = req.url || `/p/${projectId}/`;
 
     let targetPort = null;
     try {

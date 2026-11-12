@@ -71,6 +71,10 @@ export async function restoreNodeModulesCache(projectId: string): Promise<boolea
   const source = path.join(cacheDir(), "node_modules");
   if (!fs.existsSync(source)) return false;
 
+  // 先清掉可能残留的 node_modules，避免 cp 把源目录嵌套进去
+  const clean = await runCommand(projectId, "rm -rf node_modules", { timeoutMs: 120_000 });
+  if (clean.exitCode !== 0) return false;
+
   const link = await runCommand(projectId, `cp -al "${source}" node_modules`, {
     timeoutMs: 120_000,
   });
