@@ -98,4 +98,6 @@ export interface StageContext {
 export interface StageResult {
   ok: boolean;
   error?: string;
+  /** PLAN 阶段成功时返回校验后的计划，由编排器注入后续阶段 */
+  plan?: GenerationPlan;
 }

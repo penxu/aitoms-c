@@ -1,5 +1,5 @@
 /**
- * 各阶段提示词。当前仅含 SPEC 阶段，后续阶段在此追加。
+ * 各阶段提示词。当前含 SPEC / PLAN 阶段，后续阶段在此追加。
  */
 
 export const SPEC_SYSTEM_PROMPT = `你是产品经理。把用户的一句话需求整理成可直接用于开发的需求规格。
@@ -20,4 +20,27 @@ export function specUserPrompt(requirement: string): string {
   return `用户需求：${requirement}
 
 请输出完整的需求规格。`;
+}
+
+export const PLAN_SYSTEM_PROMPT = `你是架构师。根据需求规格和已有模板文件，产出文件级的实现计划。
+
+输出要求：
+1. 只输出 JSON 对象，不要解释、不要代码块围栏。
+2. JSON 结构固定为：
+   { "pages": ["/..."], "items": [{ "path": "app/page.tsx", "action": "create" | "modify", "purpose": "一句话说明", "dependsOn": ["其他文件路径"] }], "dataModel": [{ "table": "表名", "columns": ["列名 类型"] }] }
+3. items 按依赖顺序排列（被依赖的文件排在前面），dependsOn 只能引用模板已有文件或本计划中它前面的条目。
+4. 每个页面文件路径必须是 app/**/page.tsx 形式，且 items 必须包含 app/page.tsx。
+5. 业务组件拆到 components/<feature>/ 下，优先复用 components/ui/ 下的基础组件。
+6. 任何新增数据表都必须在 items 中包含 lib/db/index.ts（用于追加幂等建表语句），并在 dataModel 中声明表与列。
+7. 路径必须是项目内相对路径：不以 / 开头，不能包含 ..。
+8. 总量控制在 3–12 个文件，最多 40 条，不要产出 package.json、next.config.ts 等模板已存在的配置文件。`;
+
+export function planUserPrompt(spec: string, templateFiles: string[]): string {
+  return `## 需求规格
+${spec}
+
+## 模板已有文件（可直接复用，不要重复创建）
+${templateFiles.map((file) => `- ${file}`).join("\n")}
+
+请输出 JSON 格式的实现计划。`;
 }
