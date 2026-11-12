@@ -104,12 +104,15 @@ export async function startService(projectId: string): Promise<StartResult> {
   const port = await allocatePort();
   const command = buildStartCommand(projectId, port);
   const cwd = ensureProjectRoot(projectId);
+  // 生成项目必须用自己的 data/app.db：平台 .env 里的 DATABASE_PATH 不能泄漏给子进程
+  const childEnv = { ...process.env };
+  delete childEnv.DATABASE_PATH;
 
   const child = spawn("bash", ["-lc", command], {
     cwd,
     detached: true,
     env: {
-      ...process.env,
+      ...childEnv,
       PORT: String(port),
       HOSTNAME: "127.0.0.1",
       // 子路径部署契约：模板 next.config.ts 读取该值设置 basePath
