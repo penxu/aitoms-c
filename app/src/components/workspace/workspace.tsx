@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { ChatPanel } from "./chat-panel";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import { GenerationTimeline, type GenerationView } from "./generation-timeline";
 import type { GenerationEventPayload, GenerationStage } from "@/lib/generation/types";
 
@@ -239,15 +240,21 @@ export function Workspace({
   const showTimeline = streaming || (genView !== null && genView.status !== "ready");
 
   return (
-    <div className="flex h-screen flex-col bg-[#f8f8f6] text-[#0c0c0c]">
+    <div className="flex h-screen bg-[#f8f8f6] text-[#0c0c0c]">
+      <AppSidebar active="project" className="hidden xl:flex" />
+      <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex h-14 flex-none items-center gap-3 border-b border-black/8 bg-white px-4">
-        <Link href="/dashboard" className="flex items-center gap-2" title="返回工作台">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 xl:hidden"
+          title="返回工作台"
+        >
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#4267ff] to-[#b88ade] text-[13px] font-semibold text-white">
             A
           </span>
           <span className="text-[14px] font-semibold tracking-tight">Atoms</span>
         </Link>
-        <span className="text-black/20">/</span>
+        <span className="text-black/20 xl:hidden">/</span>
         <span className="truncate text-[13.5px] text-black/65">{project.name}</span>
         <StatusPill status={generating ? "generating" : status} />
 
@@ -389,6 +396,7 @@ export function Workspace({
             </div>
           </div>
         </section>
+        </div>
       </div>
     </div>
   );
