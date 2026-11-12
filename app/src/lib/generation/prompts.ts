@@ -1,5 +1,5 @@
 /**
- * 各阶段提示词。当前含 SPEC / PLAN / BUILD 阶段，后续阶段在此追加。
+ * 各阶段提示词。当前含 SPEC / PLAN / BUILD / REPAIR 阶段，后续阶段在此追加。
  */
 
 export const SPEC_SYSTEM_PROMPT = `你是产品经理。把用户的一句话需求整理成可直接用于开发的需求规格。
@@ -95,4 +95,30 @@ ${input.currentContent}
 
   parts.push(`请直接输出 ${input.path} 的完整文件内容。`);
   return parts.join("\n\n");
+}
+
+export const REPAIR_SYSTEM_PROMPT = `你是修复工程师。项目在安装依赖、构建或启动时报错，请给出最小修复。
+
+输出要求：
+1. 只输出 JSON 对象，不要解释、不要代码块围栏。
+2. JSON 结构固定为：{ "files": [{ "path": "相对路径", "content": "该文件的完整新内容" }] }
+3. 只能修改计划内的文件或模板已有文件，路径必须是项目内相对路径（不以 / 开头、不含 ..）。
+4. 每个文件必须输出完整内容，不是 diff；不要删除已有功能，只做让构建/启动通过所需的最小改动。
+5. 不要修改 .atoms/ 下的文件，不要引入未安装的新依赖。`;
+
+export interface RepairPromptInput {
+  errorLog: string;
+  planSummary: string;
+}
+
+export function repairUserPrompt(input: RepairPromptInput): string {
+  return `## 计划内文件
+${input.planSummary}
+
+## 构建/启动错误日志（尾部）
+\`\`\`
+${input.errorLog}
+\`\`\`
+
+请输出修复所需的完整文件列表（JSON）。`;
 }
