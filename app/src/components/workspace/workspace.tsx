@@ -241,7 +241,7 @@ export function Workspace({
   return (
     <div className="flex h-screen flex-col bg-[#f8f8f6] text-[#0c0c0c]">
       <header className="flex h-14 flex-none items-center gap-3 border-b border-black/8 bg-white px-4">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-2" title="返回工作台">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#4267ff] to-[#b88ade] text-[13px] font-semibold text-white">
             A
           </span>
