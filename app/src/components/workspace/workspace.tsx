@@ -240,7 +240,7 @@ export function Workspace({
   const showTimeline = streaming || (genView !== null && genView.status !== "ready");
 
   return (
-    <div className="flex h-screen bg-[#f8f8f6] text-[#0c0c0c]">
+    <div className="flex h-screen bg-[#f6f6f6] text-[#0c0c0c]">
       <AppSidebar active="project" className="hidden xl:flex" />
       <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex h-14 flex-none items-center gap-3 border-b border-black/8 bg-white px-4">
@@ -277,14 +277,14 @@ export function Workspace({
               <button
                 onClick={() => void serviceAction("restart")}
                 disabled={busy || generating}
-                className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] hover:border-black/25 disabled:opacity-50"
+                className="rounded-full border border-black/10 bg-white px-3.5 py-1.5 text-[12.5px] hover:border-black/25 disabled:opacity-50"
               >
                 重启
               </button>
               <button
                 onClick={() => void serviceAction("stop")}
                 disabled={busy || generating}
-                className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] text-[#e5484d] hover:border-[#e5484d]/40 disabled:opacity-50"
+                className="rounded-full border border-black/10 bg-white px-3.5 py-1.5 text-[12.5px] text-[#e5484d] hover:border-[#e5484d]/40 disabled:opacity-50"
               >
                 停止
               </button>
@@ -293,14 +293,14 @@ export function Workspace({
             <button
               onClick={() => void serviceAction("start")}
               disabled={busy || generating}
-              className="rounded-lg bg-[#4267ff] px-3.5 py-1.5 text-[12.5px] font-medium text-white hover:bg-[#2f50f0] disabled:opacity-50"
+              className="rounded-full bg-[#4267ff] px-4 py-1.5 text-[12.5px] font-medium text-white hover:bg-[#2f50f0] disabled:opacity-50"
             >
               {busy ? "启动中…" : "运行"}
             </button>
           )}
           <a
             href={`/api/projects/${project.id}/export`}
-            className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] hover:border-black/25"
+            className="rounded-full border border-black/10 bg-white px-3.5 py-1.5 text-[12.5px] hover:border-black/25"
           >
             导出
           </a>
@@ -308,7 +308,7 @@ export function Workspace({
             href={`/p/${project.id}/`}
             target="_blank"
             rel="noreferrer"
-            className="hidden rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] hover:border-black/25 sm:block"
+            className="hidden rounded-full border border-black/10 bg-white px-3.5 py-1.5 text-[12.5px] hover:border-black/25 sm:block"
           >
             新窗口打开 ↗
           </a>
@@ -325,7 +325,7 @@ export function Workspace({
         </aside>
 
         <main
-          className={`min-w-0 flex-1 border-r border-black/8 ${
+          className={`min-w-0 flex-1 ${
             mobilePane === "chat" ? "flex" : "hidden"
           } lg:flex`}
         >
@@ -338,28 +338,30 @@ export function Workspace({
         </main>
 
         <section
-          className={`min-w-0 flex-1 bg-[#f0f0ee] ${
+          className={`min-w-0 flex-1 bg-[#f6f6f6] ${
             mobilePane === "preview" ? "flex" : "hidden"
           } lg:flex`}
         >
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex h-10 flex-none items-center gap-1 border-b border-black/8 bg-[#fafaf9] px-3">
+            <div className="flex h-11 flex-none items-center gap-1 px-3">
               {(["preview", "code"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`rounded-md px-2.5 py-1 text-[12.5px] ${
-                    tab === t ? "bg-white font-medium shadow-sm" : "text-black/50"
+                  className={`rounded-full px-3 py-1 text-[12.5px] transition ${
+                    tab === t
+                      ? "bg-white font-medium text-black shadow-sm"
+                      : "text-black/45 hover:text-black/70"
                   }`}
                 >
                   {t === "preview" ? "预览" : "文件"}
                 </button>
               ))}
-              <span className="ml-auto font-mono text-[11px] text-black/35">
+              <span className="ml-auto font-mono text-[11px] text-black/30">
                 /p/{project.id}/
               </span>
             </div>
-            <div className="min-h-0 flex-1 p-3">
+            <div className="min-h-0 flex-1 px-3 pb-3">
               {tab === "preview" ? (
                 showTimeline ? (
                   <GenerationTimeline
@@ -377,12 +379,12 @@ export function Workspace({
                   <iframe
                     key={previewKey}
                     src={`/p/${project.id}/`}
-                    className="h-full w-full rounded-xl border border-black/10 bg-white"
+                    className="h-full w-full rounded-2xl border border-black/8 bg-white shadow-[0_1px_3px_rgba(12,12,12,0.04)]"
                     title="项目预览"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center">
-                    <div className="max-w-sm rounded-2xl border border-black/8 bg-white p-8 text-center">
+                    <div className="max-w-sm rounded-3xl border border-black/8 bg-white p-8 text-center shadow-[0_1px_3px_rgba(12,12,12,0.04)]">
                       <h3 className="text-[15px] font-semibold">服务尚未运行</h3>
                       <p className="mt-2 text-[13px] leading-relaxed text-black/55">
                         点击右上角「运行」，或让 AI 在对话中启动服务，即可在这里预览你的应用。
@@ -588,7 +590,7 @@ function CodeBrowser({ projectId, tree }: { projectId: string; tree: FileNode[] 
   }, [active, projectId]);
 
   return (
-    <div className="flex h-full overflow-hidden rounded-xl border border-black/10 bg-white">
+    <div className="flex h-full overflow-hidden rounded-2xl border border-black/8 bg-white">
       <div className="w-[180px] flex-none overflow-y-auto border-r border-black/8 bg-[#fafaf9] py-2">
         {files.map((f) => (
           <button
