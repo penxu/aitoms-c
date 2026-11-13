@@ -1,9 +1,10 @@
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { getModel } from "@/lib/ai/model";
 import { addRunTokens } from "@/lib/db/generation";
 import { readFile, writeFile } from "@/lib/workspace/files";
 import { MINIMAL_PLAN, PLAN_JSON_PATH, validatePlan } from "../plan-schema";
+import { extractJson } from "../model-output";
 import { PLAN_SYSTEM_PROMPT, planUserPrompt } from "../prompts";
 import { listTemplateFiles } from "../scaffold";
 import type { GenerationPlan, StageContext, StageResult } from "../types";
@@ -38,9 +39,8 @@ async function generatePlanObject(
   prompt: string,
 ): Promise<{ ok: true; object: unknown } | { ok: false; error: string }> {
   try {
-    const result = await generateObject({
+    const result = await generateText({
       model: getModel("plan"),
-      schema: zodPlanSchema,
       system: PLAN_SYSTEM_PROMPT,
       prompt,
       temperature: 0.2,
@@ -50,7 +50,11 @@ async function generatePlanObject(
       input: result.usage.inputTokens,
       output: result.usage.outputTokens,
     });
-    return { ok: true, object: result.object };
+    const parsed = zodPlanSchema.safeParse(extractJson(result.text));
+    if (!parsed.success) {
+      return { ok: false, error: `结构不符：${parsed.error.issues[0]?.message ?? "未知字段错误"}` };
+    }
+    return { ok: true, object: parsed.data };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }

@@ -33,7 +33,7 @@ export const PLAN_SYSTEM_PROMPT = `你是架构师。根据需求规格和已有
 5. 业务组件拆到 components/<feature>/ 下，优先复用 components/ui/ 下的基础组件。
 6. 任何新增数据表都必须在 items 中包含 lib/db/index.ts（用于追加幂等建表语句），并在 dataModel 中声明表与列。
 7. 路径必须是项目内相对路径：不以 / 开头，不能包含 ..。
-8. 总量控制在 3–12 个文件，最多 40 条，不要产出 package.json、next.config.ts 等模板已存在的配置文件。`;
+8. 总量控制在 3–12 个文件，最多 40 条，不要产出 package.json、next.config.ts 等模板已存在的配置文件，也不要引入新依赖。`;
 
 export function planUserPrompt(spec: string, templateFiles: string[]): string {
   return `## 需求规格
@@ -48,12 +48,13 @@ ${templateFiles.map((file) => `- ${file}`).join("\n")}
 export const BUILD_SYSTEM_PROMPT = `你是工程师。根据需求规格、分层约定与依赖文件，写出指定文件的完整内容。
 
 输出要求：
-1. 只输出该文件的完整内容，不要任何解释、不要 Markdown 代码块围栏。
+1. 只输出该文件的完整内容：第一行就是代码（如 "use client" 或 import），不要任何解释、思考过程或 Markdown 代码块围栏。
 2. 严格遵循 .atoms/CONVENTIONS.md 的目录分层与写法约定。
 3. 页面跳转只能使用 next/link 或 useRouter，禁止手写以 / 开头的绝对地址（应用部署在子路径下）。
-4. 交互组件按需添加 "use client"；优先复用 components/ui/ 下的 Button / Card / Input。
-5. 需要持久化时，在 lib/db/index.ts 的 DDL 数组追加幂等 CREATE TABLE IF NOT EXISTS 语句，并通过 getDb() 访问数据库，不要引入 ORM 迁移命令。
-6. 输出必须是可直接通过 next build 的 TypeScript/TSX，不要引用未安装的依赖。`;
+4. 浏览器端请求（fetch）必须使用 lib/api-path.ts 的 apiPath("/api/...") 拼接，禁止直接写 fetch("/api/...")。
+5. 交互组件按需添加 "use client"；优先复用 components/ui/ 下的 Button / Card / Input。
+6. 需要持久化时，在 lib/db/index.ts 的 DDL 数组追加幂等 CREATE TABLE IF NOT EXISTS 语句，在 lib/db/schema.ts 的 TABLES 中登记表名，通过 getDb() 访问数据库。项目只安装了 better-sqlite3，未安装 drizzle / prisma，禁止 import 它们，也不要新增依赖。
+7. 输出必须是可直接通过 next build 的 TypeScript/TSX，不要引用未安装的依赖。`;
 
 export interface BuildFilePromptInput {
   path: string;
@@ -63,6 +64,8 @@ export interface BuildFilePromptInput {
   conventions: string;
   dependencies: { path: string; content: string }[];
   currentContent?: string;
+  /** 模板基础文件的真实内容，避免模型凭空发明导出 */
+  foundation?: { path: string; content: string }[];
 }
 
 export function buildFilePrompt(input: BuildFilePromptInput): string {
@@ -76,6 +79,13 @@ ${input.spec}`,
     `## 分层约定（.atoms/CONVENTIONS.md）
 ${input.conventions}`,
   ];
+
+  if (input.foundation && input.foundation.length > 0) {
+    parts.push(
+      `## 模板基础文件（真实内容，必须沿用其中的导出与类型，不要臆造导出名）
+${input.foundation.map((file) => `### ${file.path}\n\`\`\`\n${file.content}\n\`\`\``).join("\n\n")}`,
+    );
+  }
 
   if (input.dependencies.length > 0) {
     parts.push(
@@ -104,14 +114,21 @@ export const REPAIR_SYSTEM_PROMPT = `你是修复工程师。项目在安装依�
 2. JSON 结构固定为：{ "files": [{ "path": "相对路径", "content": "该文件的完整新内容" }] }
 3. 只能修改计划内的文件或模板已有文件，路径必须是项目内相对路径（不以 / 开头、不含 ..）。
 4. 每个文件必须输出完整内容，不是 diff；不要删除已有功能，只做让构建/启动通过所需的最小改动。
-5. 不要修改 .atoms/ 下的文件，不要引入未安装的新依赖。`;
+5. 不要修改 .atoms/ 下的文件，不要引入未安装的新依赖。
+6. 模板约定：lib/db/index.ts 只导出 \`getDb\`，必须写 \`import { getDb } from "./db"\`，不能默认导入 db；浏览器请求必须用 lib/api-path.ts 的 \`apiPath()\`。
+7. 修改时保留文件里已有的导入与实现，只在出错位置做最小调整。`;
 
 export interface RepairPromptInput {
   errorLog: string;
   planSummary: string;
+  /** 报错涉及的文件当前内容，避免模型凭空重写 */
+  files?: { path: string; content: string }[];
 }
 
 export function repairUserPrompt(input: RepairPromptInput): string {
+  const current = (input.files ?? [])
+    .map((file) => `### ${file.path}\n\`\`\`\n${file.content}\n\`\`\``)
+    .join("\n\n");
   return `## 计划内文件
 ${input.planSummary}
 
@@ -119,6 +136,6 @@ ${input.planSummary}
 \`\`\`
 ${input.errorLog}
 \`\`\`
-
+${current ? `\n## 相关文件当前内容\n${current}\n` : ""}
 请输出修复所需的完整文件列表（JSON）。`;
 }

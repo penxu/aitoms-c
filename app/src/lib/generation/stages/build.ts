@@ -7,19 +7,24 @@ import { addRunTokens } from "@/lib/db/generation";
 import { readFile } from "@/lib/workspace/files";
 import { resolveInsideProject } from "@/lib/workspace/paths";
 import { BUILD_SYSTEM_PROMPT, buildFilePrompt } from "../prompts";
+import { stripCodeFence } from "../model-output";
+import { checkTemplateContract } from "../contracts";
 import type { PlanItem, StageContext, StageResult } from "../types";
 
 /** SPEC 注入 BUILD 时的截断长度 */
 const MAX_SPEC_CHARS = 6000;
 /** 单个依赖文件注入长度 */
 const MAX_DEP_CHARS = 4000;
+/** 单个模板基础文件注入长度 */
+const MAX_FOUNDATION_CHARS = 3000;
+/** 模板基础文件：模型必须沿用其中的导出与类型，不能凭空发明 */
+const FOUNDATION_FILES = ["lib/db/index.ts", "lib/db/schema.ts", "lib/api-path.ts"];
 
 /** 去除模型整体包裹的 Markdown 代码围栏 */
-export function stripCodeFence(text: string): string {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^```[^\n]*\n([\s\S]*?)\n?```$/);
-  return match ? match[1] : trimmed;
-}
+export { stripCodeFence };
+
+/** 模板契约：允许模型改写这些文件，但不得破坏关键导出与探活接口 */
+export { checkTemplateContract };
 
 /** 原子写入：先写临时文件再 rename，避免中断留下半个文件 */
 export function writeFileAtomic(projectId: string, relPath: string, content: string): void {
@@ -52,13 +57,31 @@ function collectDependencies(ctx: StageContext, item: PlanItem): { path: string;
   return deps;
 }
 
+function collectFoundation(
+  projectId: string,
+  selfPath: string,
+): { path: string; content: string }[] {
+  const files: { path: string; content: string }[] = [];
+  for (const rel of FOUNDATION_FILES) {
+    if (rel === selfPath) continue;
+    const content = tryRead(projectId, rel);
+    if (content === null) continue;
+    files.push({ path: rel, content: content.slice(0, MAX_FOUNDATION_CHARS) });
+  }
+  return files;
+}
+
 async function generateFile(
   ctx: StageContext,
   item: PlanItem,
   spec: string,
   conventions: string,
+  hint?: string,
 ): Promise<{ ok: true; content: string } | { ok: false; error: string }> {
   const currentContent = item.action === "modify" ? tryRead(ctx.projectId, item.path) ?? undefined : undefined;
+  const rules = hint
+    ? `${conventions}\n\n## 上一次输出被拒绝\n${hint}\n请修正后重新输出完整文件。`
+    : conventions;
 
   try {
     const result = await generateText({
@@ -69,9 +92,10 @@ async function generateFile(
         action: item.action,
         purpose: item.purpose,
         spec,
-        conventions,
+        conventions: rules,
         dependencies: collectDependencies(ctx, item),
         currentContent,
+        foundation: collectFoundation(ctx.projectId, item.path),
       }),
       temperature: 0.3,
       abortSignal: ctx.signal,
@@ -110,12 +134,19 @@ export async function runBuildStage(ctx: StageContext): Promise<StageResult> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
 
-      const generated = await generateFile(ctx, item, spec, conventions);
+      const generated = await generateFile(ctx, item, spec, conventions, attempt > 0 ? lastError : undefined);
       if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
 
       if (!generated.ok) {
         lastError = generated.error;
         ctx.log("warn", `${item.path} 生成失败（第 ${attempt + 1} 次）：${generated.error}`);
+        continue;
+      }
+
+      const violation = checkTemplateContract(item.path, generated.content);
+      if (violation) {
+        lastError = violation;
+        ctx.log("warn", `${item.path} 破坏模板契约（第 ${attempt + 1} 次）：${violation}`);
         continue;
       }
 

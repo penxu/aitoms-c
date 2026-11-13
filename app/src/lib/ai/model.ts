@@ -20,7 +20,8 @@ const MODEL_NAMES: Record<ModelKind, string> = {
 };
 
 export function getModel(kind: ModelKind): LanguageModel {
-  return provider(MODEL_NAMES[kind]);
+  // 固定走 /chat/completions：DeepSeek 等兼容接口不提供 Responses API
+  return provider.chat(MODEL_NAMES[kind]);
 }
 
 /** 是否配置了真实模型：测试桩的 key 为 stub，不能进行对话与工具调用 */
