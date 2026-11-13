@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AssistantRuntimeProvider, ThreadPrimitive, ComposerPrimitive, MessagePrimitive } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
 import { AssistantChatTransport } from "@assistant-ui/ai-sdk";
@@ -9,12 +10,20 @@ export function ChatPanel({
   projectId,
   initialMessages,
   locked = false,
+  modelConfigured = true,
+  canGenerate = false,
+  onGenerate,
   onToolFinished,
 }: {
   projectId: string;
   initialMessages: UIMessage[];
   /** 生成流水线进行中：禁止继续对话 */
   locked?: boolean;
+  /** 是否配置了真实模型；未配置时对话直接触发代码生成 */
+  modelConfigured?: boolean;
+  /** 项目尚未生成完成，可以接受「对话即生成」 */
+  canGenerate?: boolean;
+  onGenerate?: (requirement: string) => void;
   onToolFinished?: () => void;
 }) {
   const runtime = useChatRuntime({
@@ -55,27 +64,96 @@ export function ChatPanel({
               生成中，完成后再继续对话
             </p>
           ) : null}
-          <ComposerPrimitive.Root className="mx-auto flex max-w-2xl items-end gap-2 rounded-2xl border border-black/10 bg-[#fafaf9] p-2 focus-within:border-[#4267ff]/50">
-            <ComposerPrimitive.Input
-              placeholder={locked ? "生成中，完成后再继续对话" : "描述需求，或让 AI 修改代码…"}
-              className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] outline-none placeholder:text-black/35 disabled:opacity-50"
-              rows={1}
-              disabled={locked}
-              autoFocus={!locked}
+          {!modelConfigured ? (
+            <div className="mx-auto mb-2 max-w-2xl rounded-xl bg-[#4267ff]/6 px-3 py-2 text-[12px] leading-relaxed text-[#3355e0]">
+              {canGenerate
+                ? "尚未配置模型：发送需求会直接启动代码生成流水线，进度见右侧。"
+                : "尚未配置模型：暂不支持对话式改代码。在 app/.env.local 填入 OPENAI_API_KEY 后重启即可。"}
+            </div>
+          ) : null}
+          {modelConfigured ? (
+            <ComposerPrimitive.Root className="mx-auto flex max-w-2xl items-end gap-2 rounded-2xl border border-black/10 bg-[#fafaf9] p-2 focus-within:border-[#4267ff]/50">
+              <ComposerPrimitive.Input
+                placeholder={locked ? "生成中，完成后再继续对话" : "描述需求，或让 AI 修改代码…"}
+                className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] outline-none placeholder:text-black/35 disabled:opacity-50"
+                rows={1}
+                disabled={locked}
+                autoFocus={!locked}
+              />
+              <ComposerPrimitive.Send
+                disabled={locked}
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[#4267ff] text-white transition hover:bg-[#2f50f0] disabled:opacity-40"
+              >
+                ↑
+              </ComposerPrimitive.Send>
+            </ComposerPrimitive.Root>
+          ) : (
+            <GenerateComposer
+              disabled={locked || !canGenerate}
+              placeholder={
+                locked
+                  ? "生成中，完成后再继续"
+                  : canGenerate
+                    ? "描述你的需求，直接开始生成…"
+                    : "配置模型后可进行对话式改代码"
+              }
+              onGenerate={onGenerate}
             />
-            <ComposerPrimitive.Send
-              disabled={locked}
-              className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[#4267ff] text-white transition hover:bg-[#2f50f0] disabled:opacity-40"
-            >
-              ↑
-            </ComposerPrimitive.Send>
-          </ComposerPrimitive.Root>
+          )}
           <p className="mx-auto mt-2 max-w-2xl text-center text-[11.5px] text-black/35">
-            AI 拥有该项目目录的读写权限，请勿上传敏感信息
+            {modelConfigured
+              ? "AI 拥有该项目目录的读写权限，请勿上传敏感信息"
+              : "生成过程会写入项目目录与 .atoms 交付文档"}
           </p>
         </div>
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>
+  );
+}
+
+function GenerateComposer({
+  disabled,
+  placeholder,
+  onGenerate,
+}: {
+  disabled: boolean;
+  placeholder: string;
+  onGenerate?: (requirement: string) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  function submit() {
+    const text = value.trim();
+    if (!text || disabled || !onGenerate) return;
+    setValue("");
+    onGenerate(text);
+  }
+
+  return (
+    <div className="mx-auto flex max-w-2xl items-end gap-2 rounded-2xl border border-black/10 bg-[#fafaf9] p-2 focus-within:border-[#4267ff]/50">
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder={placeholder}
+        rows={1}
+        disabled={disabled}
+        className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] outline-none placeholder:text-black/35 disabled:opacity-50"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={disabled || !value.trim()}
+        className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[#4267ff] text-white transition hover:bg-[#2f50f0] disabled:opacity-40"
+      >
+        ↑
+      </button>
+    </div>
   );
 }
 

@@ -27,10 +27,13 @@ export function Workspace({
   project,
   initialMessages,
   initialQuery,
+  modelConfigured,
 }: {
   project: ProjectInfo;
   initialMessages: UIMessage[];
   initialQuery?: string;
+  /** 是否配置了真实模型；未配置时对话直接触发代码生成 */
+  modelConfigured: boolean;
 }) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [status, setStatus] = useState(project.status);
@@ -333,6 +336,9 @@ export function Workspace({
             projectId={project.id}
             initialMessages={initialMessages}
             locked={generating}
+            modelConfigured={modelConfigured}
+            canGenerate={genView?.status !== "ready"}
+            onGenerate={(requirement) => void attachGeneration(requirement)}
             onToolFinished={refresh}
           />
         </main>
