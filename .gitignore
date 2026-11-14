@@ -1,0 +1,5 @@
+# platform data: SQLite database + user project workspaces
+/data/
+
+# os
+.DS_Store
