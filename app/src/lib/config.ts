@@ -36,6 +36,8 @@ export const config = {
   templateRoot: process.env.TEMPLATE_ROOT
     ? path.resolve(process.env.TEMPLATE_ROOT)
     : path.resolve(process.cwd(), "..", "templates"),
+  /** 固定模板依赖预热与复用；关闭时保留独立安装链路。 */
+  templateDependencyReuse: process.env.TEMPLATE_DEPENDENCY_REUSE !== "false",
   /** 模板 node_modules 快照缓存根目录 */
   templateCacheRoot: process.env.TEMPLATE_CACHE_ROOT
     ? path.resolve(process.env.TEMPLATE_CACHE_ROOT)

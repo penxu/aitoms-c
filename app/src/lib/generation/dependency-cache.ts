@@ -32,7 +32,7 @@ export function copyDependencyTree(source: string, target: string): void {
     }
   };
   inspect(root);
-  fs.cpSync(source, target, { recursive: true, dereference: false, verbatimSymlinks: true });
+  fs.cpSync(source, target, { recursive: true, dereference: false, verbatimSymlinks: true, mode:fs.constants.COPYFILE_FICLONE });
 }
 
 /** 键以实际工程为准，不能用模板指纹代替依赖安装状态。 */
@@ -43,6 +43,13 @@ export function dependencyFingerprint(root: string, runtime?: {node:string;platf
       const file=path.join(root,filename);
       if (!fs.lstatSync(file).isFile()) return null;
       hash.update(filename).update(fs.readFileSync(file));
+    }
+    for(const filename of ['.npmrc','.pnpmfile.cjs','.pnpmfile.mjs','pnpm-workspace.yaml','yarn.lock','package-lock.json']){
+      const file=path.join(root,filename);
+      try{
+        if(!fs.lstatSync(file).isFile())return null;
+        hash.update(filename).update(fs.readFileSync(file));
+      }catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
     }
     return hash.update(JSON.stringify(runtime ?? workspaceExecutionRuntime(root))).update(fs.readFileSync(path.resolve(pnpmCliPath(),'../../package.json'))).update('pnpm-hoisted-v3').digest('hex');
   } catch { return null; }
@@ -107,4 +114,30 @@ export function prepareDependencyRuntime(root:string,runtime:string):boolean {
   if(previous===runtime)return true;
   fs.rmSync(modules,{recursive:true,force:true});
   return false;
+}
+
+/** 大树复制走异步 I/O，避免阻塞平台心跳、取消与日志轮询。 */
+export async function publishDependencyCacheAsync(source:string,target:string,fingerprint:string):Promise<void>{
+  const {copyDependencyTreeAsync}=await import('./dependency-copy.ts');
+  await fs.promises.mkdir(path.dirname(target),{recursive:true});
+  if(fs.existsSync(target))return;
+  const temporary=await fs.promises.mkdtemp(`${target}.tmp-`);
+  try{
+    await copyDependencyTreeAsync(source,path.join(temporary,'node_modules'));
+    await fs.promises.writeFile(path.join(temporary,'manifest.json'),JSON.stringify({fingerprint}));
+    try{await fs.promises.rename(temporary,target);}catch(error){if(!fs.existsSync(target))throw error;}
+  }finally{await fs.promises.rm(temporary,{recursive:true,force:true});}
+}
+export async function restoreDependencyCacheAsync(source:string,target:string,fingerprint:string):Promise<boolean>{
+  const {copyDependencyTreeAsync}=await import('./dependency-copy.ts');
+  try{
+    const manifest=JSON.parse(await fs.promises.readFile(path.join(source,'manifest.json'),'utf8'));
+    if(manifest.fingerprint!==fingerprint||!isReusableDependencyTree(path.join(source,'node_modules'))||fs.existsSync(target))return false;
+    const stage=await fs.promises.mkdtemp(path.join(path.dirname(target),'.atoms-deps-'));
+    try{
+      await copyDependencyTreeAsync(path.join(source,'node_modules'),path.join(stage,'node_modules'));
+      await fs.promises.rename(path.join(stage,'node_modules'),target);
+    }finally{await fs.promises.rm(stage,{recursive:true,force:true});}
+    return true;
+  }catch{return false;}
 }

@@ -54,11 +54,13 @@ The platform SHALL preserve valid business code, persist file checkpoints, bound
 #### Scenario: Resume after interruption
 - **WHEN** an interrupted build is resumed with unchanged plan and dependencies
 - **THEN** previously completed unchanged files SHALL be reused and changed files SHALL not be silently overwritten
+
 ### Requirement: Verified delivery
 The platform SHALL reject incomplete plans, repair missing implementation files, and record actual browser/API checks independently from compilation.
 #### Scenario: Missing required component
 - **WHEN** an import points to an absent allowed source file
 - **THEN** repair MAY create it, and no-progress retries SHALL terminate with an actionable failure
+
 ### Requirement: Isolated and unique runtimes
 The platform SHALL start at most one preview per project, recover process identity, and keep platform credentials and other project files outside generated processes.
 #### Scenario: Concurrent start
@@ -88,6 +90,7 @@ The platform SHALL execute browser/API checks with the same browser session and 
 #### Scenario: Authenticated API validation
 - **WHEN** a browser has completed login and an acceptance step calls a protected same-origin API
 - **THEN** that request SHALL use the browser's authenticated session without weakening the application's authentication requirement
+
 ### Requirement: Observable asynchronous prerequisites
 Generated acceptance flows SHALL wait for observable successful authentication before dependent navigation and SHALL use valid, unambiguous interaction targets and genuinely invalid input fixtures.
 #### Scenario: Registration before booking
@@ -164,3 +167,30 @@ Project preparation and successful preview replacement SHALL reclaim obsolete ca
 #### Scenario: Background cache cleanup
 - **WHEN** startup maintenance scans projects
 - **THEN** it SHALL obtain the project mutation lease, reject symlinked cache paths, preserve runtime TMP/store for protected services and skip busy projects
+
+### Requirement: Reusable fixed-template dependencies before installation
+The platform SHALL prepare fixed-template dependencies in a controlled independent temporary project inaccessible to running user applications and publish a complete cache keyed by the trusted manifest, package manager, registry and execution runtime. Matching projects without a lockfile SHALL reuse its lockfile and installed tree without invoking another installation. Changed dependencies, scripts, unsupported configuration or a conflicting lockfile SHALL use independent installation.
+
+#### Scenario: Second template project
+- **WHEN** a complete cache exists for a matching template and runtime
+- **THEN** dependencies and the template lockfile SHALL be restored without running pnpm
+
+#### Scenario: Independent writes
+- **WHEN** dependency trees are restored or copied
+- **THEN** files SHALL have independent writable inodes, using copy-on-write storage when supported and ordinary copies otherwise, and cache removal SHALL NOT invalidate restored projects
+
+#### Scenario: Interrupted or corrupt preparation
+- **WHEN** preparation fails, is cancelled, or encounters a broken or escaping cache tree
+- **THEN** it SHALL NOT publish partial results, claim successful reuse, or weaken project path validation
+
+#### Scenario: Responsive cache operations
+- **WHEN** a large dependency cache is inspected, published or restored
+- **THEN** filesystem traversal and copying SHALL be asynchronous so platform requests can continue
+
+#### Scenario: Corrupt cache recovery
+- **WHEN** cached contents, links, permissions or the lockfile fail full integrity validation
+- **THEN** the cache SHALL be isolated and rebuilt before reporting successful reuse
+
+#### Scenario: Cold installation fails
+- **WHEN** the controlled template installation fails or times out
+- **THEN** its actual failure SHALL be returned without automatically starting a second identical installation

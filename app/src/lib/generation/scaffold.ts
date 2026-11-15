@@ -1,6 +1,8 @@
 import {pruneInstalledDownloadCache} from "./install-cache";
-import { dependencyFingerprint, prepareDependencyRuntime, isReusableDependencyTree, publishDependencyCache, restoreDependencyCache, hasInstalledDependencies } from "./dependency-cache";
+import { dependencyFingerprint, prepareDependencyRuntime, isReusableDependencyTree, publishDependencyCacheAsync as publishDependencyCache, restoreDependencyCacheAsync as restoreDependencyCache, hasInstalledDependencies } from "./dependency-cache";
 import { runCommand, type CommandResult } from "@/lib/workspace/command";
+import {reuseTemplateDependencies,TemplateDependencyInstallError} from "./template-dependencies";
+import {pnpmCliPath} from "@/lib/workspace/toolchain";
 import { installDependenciesCommand } from "@/lib/workspace/toolchain";
 import { workspaceExecutionRuntime, ensureWorkspaceRuntime } from "@/lib/workspace/execution";
 import { createHash } from "node:crypto";
@@ -83,7 +85,7 @@ export async function saveNodeModulesCache(projectId: string, cwd = "."): Promis
   const fingerprint = dependencyFingerprint(root);
   const source = resolveInsideProject(projectId, path.join(cwd, "node_modules"), {allowMissing:true});
   if (!fingerprint || !isReusableDependencyTree(source)) return;
-  try {publishDependencyCache(source, cacheDir(fingerprint), fingerprint);} catch { /* 缓存失败不影响交付 */ }
+  try {await publishDependencyCache(source, cacheDir(fingerprint), fingerprint);} catch { /* 缓存失败不影响交付 */ }
 }
 
 /** 精确复用成功安装；其他缓存仍由固定 pnpm 校验和补齐依赖。 */
@@ -101,19 +103,51 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
     await reclaimInstallCache(root,onProgress);
     return {stdout,stderr:"",exitCode:0,timedOut:false,aborted:false};
   }
+  if(!packages.length && config.templateDependencyReuse !== false) {
+    try {
+      const result=await reuseTemplateDependencies({
+        root,cacheRoot:config.templateCacheRoot,
+        template:await fs.promises.readFile(path.join(templateDir(),"package.json"),"utf8"),
+        runtime:templateRuntimeIdentity(executionRuntime),toolchain:await fs.promises.readFile(path.resolve(pnpmCliPath(),"../../package.json"),"utf8"),
+        registry:config.packageRegistry,signal,onProgress,
+        // 隔离的临时项目不挂载到任何现有应用中，避免运行进程篡改全局缓存来源。
+        createStage:async()=>{
+          const stage=await fs.promises.mkdtemp(path.join(config.workspaceRoot,"atoms_template_"));
+          return resolveInsideProject(path.basename(stage),".");
+        },
+        install:stage=>runCommand(path.basename(stage),command,{
+          timeoutMs:300_000,signal,
+          onOutput:chunk=>onProgress?.(chunk),
+        }),
+      });
+      if(result) {
+        writeInstalledMarker(root,runtime,true);
+        await reclaimInstallCache(root,onProgress);
+        return result;
+      }
+    } catch(error) {
+      if(signal?.aborted)return {stdout:"",stderr:"",exitCode:null,timedOut:false,aborted:true};
+      if(error instanceof TemplateDependencyInstallError)return error.result;
+      onProgress?.(`模板依赖未能复用，回退独立安装：${error instanceof Error?error.message:String(error)}`);
+    }
+  }
   onProgress?.("正在检查运行环境与依赖缓存");
+  // 模板快照的 pnpm store 位置属于已回收的独立预热工程；定制安装必须重新生成本项目的链接元数据。
+  let templateInstalled=false;
+  try{templateInstalled=JSON.parse(fs.readFileSync(path.join(modules,".atoms-runtime.json"),"utf8")).templateCache===true;}catch{}
+  if(templateInstalled){
+    resolveInsideProject(projectId,path.join(cwd,"node_modules"));
+    onProgress?.("依赖已定制，正在切换到项目独立安装环境");
+    await fs.promises.rm(modules,{recursive:true,force:true});
+  }
   prepareDependencyRuntime(root,runtime);
-  await restoreNodeModulesCache(projectId,cwd);
+  if(!packages.length)await restoreNodeModulesCache(projectId,cwd);
   onProgress?.("正在安装依赖：下载、链接或编译原生模块，日志将实时更新");
   const result = await runCommand(projectId, command, {timeoutMs:300_000,signal,env,cwd,onOutput:chunk=>onProgress?.(chunk)});
   if (result.exitCode === 0 && !result.aborted && !result.timedOut) {
     const npmLock=resolveInsideProject(projectId,path.join(cwd,"package-lock.json"),{allowMissing:true});
     if (fs.existsSync(npmLock)) fs.unlinkSync(npmLock);
-    if(fs.existsSync(modules)) {
-      const manifest=path.join(modules,".atoms-runtime.json");
-      if(fs.existsSync(manifest))fs.unlinkSync(manifest);
-      fs.writeFileSync(manifest,JSON.stringify({runtime,fingerprint:dependencyFingerprint(root)}));
-    }
+    if(fs.existsSync(modules)) writeInstalledMarker(root,runtime);
     onProgress?.("依赖安装完成，正在保存可复用缓存");
     await saveNodeModulesCache(projectId,cwd);
     await reclaimInstallCache(root,onProgress);
@@ -164,4 +198,17 @@ async function reclaimInstallCache(root:string,onProgress?:(message:string)=>voi
     onProgress?.("正在回收安装下载缓存，保留已安装依赖");
     await pruneInstalledDownloadCache(root);
   }catch(error){onProgress?.(`下载缓存暂未回收：${error instanceof Error?error.message:String(error)}`);}
+}
+
+function writeInstalledMarker(root:string,runtime:string,templateCache=false):void{
+  const manifest=path.join(root,"node_modules/.atoms-runtime.json");
+  if(fs.existsSync(manifest))fs.unlinkSync(manifest);
+  fs.writeFileSync(manifest,JSON.stringify({runtime,fingerprint:dependencyFingerprint(root),templateCache}));
+}
+
+/** 原生运行时额外区分 ABI 与 libc；容器由不可变镜像 ID 区分用户态。 */
+function templateRuntimeIdentity(runtime:ReturnType<typeof workspaceExecutionRuntime>):string{
+  if(runtime.backend!=="native")return JSON.stringify(runtime);
+  const header=(process.report?.getReport() as {header?:{glibcVersionRuntime?:string}})?.header;
+  return JSON.stringify({runtime,abi:process.versions.modules,libc:header?.glibcVersionRuntime??`${process.platform}-unknown`});
 }
