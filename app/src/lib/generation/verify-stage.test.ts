@@ -33,7 +33,7 @@ for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: fa
       if (blocked && command.includes(" build --webpack")) return { exitCode: 1, stdout: "build failed", stderr: "SAFE_DELETE_BULK_CONFIRM_REQUIRED", aborted: false };
       return { exitCode: 0, stdout: "", stderr: "", aborted: false };
     },
-    getRuntimePort: () => 4000, restartService: async (_id:string,options:{validate:(v:{port:number},signal:AbortSignal)=>Promise<void>}) => {managedStarts++;await options.validate({port:4000},new AbortController().signal)}, waitForHealth: async () => {healthCalls++;return true;},
+    startService:async()=>{managedStarts++;return{port:4000};},getRuntimePort: () => 4000, restartService: async (_id:string,options:{validate:(v:{port:number},signal:AbortSignal)=>Promise<void>}) => {managedStarts++;await options.validate({port:4000},new AbortController().signal)}, waitForHealth: async () => {healthCalls++;return true;},
     readFile: () => "## 验收清单\n- 保存并刷新查询\n## 外部依赖\n- 无",
     resolveInsideProject: (_id: string, rel: string) => path.join("/unused/project", rel),
     projectRoot: () => "/unused/project", computeProjectHash: () => "source-hash",

@@ -89,7 +89,7 @@ export async function saveNodeModulesCache(projectId: string, cwd = "."): Promis
 }
 
 /** 精确复用成功安装；其他缓存仍由固定 pnpm 校验和补齐依赖。 */
-export async function ensureProjectDependencies(projectId: string, signal?: AbortSignal, env?: Record<string,string>, cwd = ".", packages: string[] = [], onProgress?: (message:string)=>void): Promise<CommandResult> {
+export async function ensureProjectDependencies(projectId: string, signal?: AbortSignal, env?: Record<string,string>, cwd = ".", packages: string[] = [], onProgress?: (message:string)=>void): Promise<CommandResult & {dependenciesChanged?:boolean}> {
   const command=installDependenciesCommand(packages);
   if(signal?.aborted)return {stdout:"",stderr:"",exitCode:null,timedOut:false,aborted:true};
   const root=resolveInsideProject(projectId,cwd);
@@ -100,8 +100,7 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
   if(!packages.length && hasInstalledDependencies(root,executionRuntime)) {
     const stdout="依赖清单、锁文件与运行环境匹配，复用已安装依赖，无需重复下载";
     onProgress?.(stdout);
-    await reclaimInstallCache(root,onProgress);
-    return {stdout,stderr:"",exitCode:0,timedOut:false,aborted:false};
+    return {stdout,stderr:"",exitCode:0,timedOut:false,aborted:false,dependenciesChanged:false};
   }
   if(!packages.length && config.templateDependencyReuse !== false) {
     try {
@@ -123,7 +122,7 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
       if(result) {
         writeInstalledMarker(root,runtime,true);
         await reclaimInstallCache(root,onProgress);
-        return result;
+        return {...result,dependenciesChanged:true};
       }
     } catch(error) {
       if(signal?.aborted)return {stdout:"",stderr:"",exitCode:null,timedOut:false,aborted:true};
@@ -153,7 +152,7 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
     await reclaimInstallCache(root,onProgress);
   }
   if(result.timedOut)result.stderr+= "\n依赖安装超过5分钟已终止；请查看最后日志，区分下载超时与原生模块编译失败。";
-  return result;
+  return {...result,dependenciesChanged:true};
 }
 
 /** 目录已有内容但没有 .atoms/：视为用户已有成果，禁止覆盖 */

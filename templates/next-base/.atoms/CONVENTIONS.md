@@ -94,3 +94,9 @@ export default function Page() {
   );
 }
 ```
+
+## 单页交互与首屏性能
+
+默认只有根页面，业务新建、编辑、详情和列表都在同一工作台用状态或hash切换；API路由不受此限制。轻量表单用当前页抽屉/弹窗立即打开，保留焦点、Escape关闭和已填写内容。重型编辑器、3D和图表使用next/dynamic按需加载，显示加载/失败/重试，禁止把所有功能静态导入首屏。保存调用真实API并局部更新数据，不用router.refresh重刷全站；切换未保存内容前确认。
+
+确有独立页面需求时，保留模板app/loading.tsx，导航使用`import { NavigationLink } from "@/components/app/navigation-link"`，API与next/link一致，自动提供pending反馈。不要为了性能跳过校验、持久化或把成功提示伪造成真实提交。

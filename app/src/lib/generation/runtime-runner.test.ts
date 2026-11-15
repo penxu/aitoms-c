@@ -21,7 +21,8 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
   const children = new Map<number, EventEmitter>();
   const rows = new Map<string, { pid: number | null; port: number; status: string; startedAt: Date }>();
   const signals: number[] = []; let spawns = 0; let cleanups = 0;let httpChecks=0,socketChecks=0; let runtimeEnv: Record<string,string> = {};
-  const context = { exports: {}, globalThis: {}, setTimeout, Promise, process: { kill(pid: number) {
+  let dependencyKey='initial-dependencies';
+  const context = { AbortSignal,exports: {}, globalThis: {}, setTimeout, Promise, process: { kill(pid: number) {
     signals.push(pid); const actual = Math.abs(pid); identities.delete(actual); queueMicrotask(() => children.get(actual)?.emit('exit', 0));
   } } };
   const imports: Record<string, unknown> = {
@@ -44,6 +45,7 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
     './workspace/toolchain': { pnpmShellCommand: () => 'pnpm' },
     './workspace/ports': { findAvailablePort: options.allocate ?? findAvailablePort },
     '@/lib/workspace/paths': { ensureProjectRoot: () => '/tmp/project', resolveInsideProject: (_id: string, relative: string) => path.resolve('/tmp/project', relative) },
+    './generation/dependency-cache':{dependencyFingerprint:()=>dependencyKey},
     './workspace/runtime-logs':{RuntimeLogs},
     './workspace/runtime-gate': { RuntimeGate }, './workspace/runtime-identities': { RuntimeIdentities },
     './workspace/process-identity': { sameProcess, readProcessIdentity: (pid: number) => identities.get(pid) ?? null },
@@ -59,7 +61,7 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   vm.runInNewContext(compiled, { ...context, require: (name: string) => imports[name] ?? require(name) });
   const api = context.exports as {
-    startService: (id: string, options?: { sourceDir: string }) => Promise<{ port: number; pid: number }>;
+    startService: (id: string, options?: { sourceDir: string;signal?:AbortSignal }) => Promise<{ port: number; pid: number }>;
     restartService: (id: string, options: { sourceDir: string; validate?: (result: { port: number; pid: number }) => Promise<void> }) => Promise<{ port: number; pid: number }>;
     getRuntimePort: (id:string)=>number|null;
     getRuntimeLogs:(id:string)=>string;
@@ -67,7 +69,7 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
     pinServiceToSnapshot: (id: string, createSnapshot: () => Promise<{relativeRoot:string}>) => Promise<unknown>;
     stopService: (id: string) => unknown; cleanupOrphans: () => string[];
   };
-  return { api, db, rows, identities, signals, context, children, spawns: () => spawns, cleanups: () => cleanups, runtimeEnv: () => runtimeEnv,httpChecks:()=>httpChecks,socketChecks:()=>socketChecks };
+  return { changeDependencies:()=>{dependencyKey='changed-dependencies';},api, db, rows, identities, signals, context, children, spawns: () => spawns, cleanups: () => cleanups, runtimeEnv: () => runtimeEnv,httpChecks:()=>httpChecks,socketChecks:()=>socketChecks };
 }
 
 test('runner并发start仅创建一个进程，启动失败释放预约端口并清理状态', async () => {
@@ -230,4 +232,17 @@ test('默认Next预览即使有旧BUILD_ID也启动dev和development环境',asyn
 
 test('预览启动后继续保留编译与崩溃日志',async()=>{
  const f=fixture();try{const service=await f.api.startService('a');const child=f.children.get(service.pid) as EventEmitter&{stdout:EventEmitter};child.stdout.emit('data',Buffer.from('Compiling /page ...'));assert.match(f.api.getRuntimeLogs('a'),/Compiling/);child.emit('exit',1);assert.match(f.api.getRuntimeLogs('a'),/Compiling/);assert.match(f.api.getRuntimeLogs('a'),/进程退出/);}finally{f.db.close();}
+});
+
+
+test('重复根目录start复用进程；独立安装后指纹变化必须重启',async()=>{
+ const f=fixture();try{const first=await f.api.startService('a',{sourceDir:'.'});const reused=await f.api.startService('a',{sourceDir:'.'});assert.equal(first.pid,reused.pid);f.changeDependencies();const changed=await f.api.startService('a',{sourceDir:'.'});assert.notEqual(changed.pid,first.pid);assert.equal(f.spawns(),2);f.api.stopService('a');}finally{f.db.close();}
+});
+test('旧候选切换根目录失败仍恢复旧预览',async()=>{
+ let checks=0;const f=fixture({ready:async()=>{if(++checks===2)throw Error('root startup failed');}});
+ try{await f.api.startService('a',{sourceDir:'.atoms/candidates/old'});await assert.rejects(f.api.startService('a',{sourceDir:'.'}),/已恢复上一版本/);assert.equal(f.api.getRuntimePort('a'),4000);assert.ok(f.api.getProtectedRuntimeSources('a').includes('.atoms/candidates/old'));f.api.stopService('a');}finally{f.db.close();}
+});
+test('调用者在分配端口期间取消不能留下新服务',async()=>{
+ let release!:(port:number)=>void,entered!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;});const controller=new AbortController();
+ const f=fixture({allocate:()=>new Promise(resolve=>{release=resolve;entered();})});try{const pending=f.api.startService('a',{sourceDir:'.',signal:controller.signal});await started;controller.abort();release(4000);await assert.rejects(pending);assert.equal(f.spawns(),0);assert.equal(f.api.getRuntimePort('a'),null);}finally{f.db.close();}
 });

@@ -16,7 +16,7 @@ export const SPEC_SYSTEM_PROMPT = `你是产品经理。把用户的一句话需
    ## 核心流程
    ## 验收清单
    ## 外部依赖
-3. 「## 页面」用列表给出每个页面，必须写明路由路径（如 \`/booking\`）与一句话说明。
+3. 默认生成单页应用：「## 页面」只规划根路由 \`/\`，列出同页工作区、抽屉、弹窗和面板；新建/编辑/详情/列表不单独建页面。仅用户明确要求独立可分享页面、认证回调等必要情况才增加路由并说明原因。重型编辑器、3D、图表按需加载，首屏只包含轻量外壳和必要数据，不能静态导入所有功能。列表分页或只读取首屏摘要，不在首次打开时查询所有明细。
 4. 「## 数据模型」用列表给出每张表，格式为 \`表名(列名 类型, ...)\`，类型使用 SQLite 类型；不需要持久化时写「无」。
 5. 「## 非目标」列出本期明确不做的内容。
 6. 内容要具体到可以直接实现，不写「功能丰富」「体验良好」这类空话。
@@ -48,7 +48,7 @@ export const PLAN_SYSTEM_PROMPT = `你是架构师。根据需求规格和已有
 7. 路径必须是项目内相对路径：不以 / 开头，不能包含 ..。
 8. 计划必须覆盖 SPEC 的设计规则、核心流程、验收清单和外部依赖；通过共享布局/样式统一页面，并规划真实服务端校验和持久化，不能只规划静态展示。
 9. 表单和后台客户端组件必须 dependsOn 对应 API route.ts 和共享校验/类型文件，沿用它们的请求字段、响应字段、错误格式，不可独立猜测命名。前后端共用 TypeScript DTO，计划包含共享请求/响应类型。
-10. 总量按需求合理拆分，通常3–20个文件，最多40条，不要改写脚手架配置或引入新依赖。
+10. 总量按需求合理拆分，通常3–20个文件，最多40条，不要改写脚手架配置或引入新依赖。默认单页工作台，pages只含/，同页操作用本地状态或hash；API route.ts照常按业务拆分。轻量表单立即打开，重型组件按需加载并有加载/失败/重试状态；已有需求确有必要保留的页面跳转使用模板NavigationLink与app/loading.tsx提供即时反馈。
 11. JSON必须包含 acceptance 数组，覆盖SPEC全部AC-ID。每项 {id:"AC-01",route:"/",description:"被验证需求",steps:[...]}。步骤支持：{action:"fill",label:"真实表单标签",value:"测试值"}、{action:"click",role:"button"或"link",name:"可访问名称"}、{action:"expectText",text:"实际可见结果"}、{action:"reload"}、{action:"goto",route:"/admin"}、{action:"request",path:"/api/bookings",method:"GET"、"POST"、"PATCH"或"DELETE",body:{},expectStatus:200,jsonContains:{字段:预期值}}。
 12. 额外步骤：下拉框用{action:"select",label:"服务类型",value:"bath"}，复选框用{action:"check",label:"同意条款",checked:true}；{action:"expectRole",role:"button"或"link"或"textbox",name:"可访问名称"}断言控件可见；{action:"expectFocused",role:"textbox",name:"便签内容"}断言焦点；aria-label不是页面可见文本，禁止用expectText断言仅存在于aria-label的名称。{action:"press",key:"Enter"或"Tab"或"ArrowLeft",label:"可选的字段标签"}，按钮键盘激活可用{action:"press",role:"button",name:"保存",key:"Enter"}；禁止猜测未验证的Tab次数；{action:"expectAbsent",text:"应消失的内容"}；{action:"expectValue",label:"字段标签",value:"预期值"}；{action:"mockRequest",path:"/api/books",status:500,body:{error:"测试错误"}} 后reload用于注入接口失败，{action:"restoreRequests"}后点击重试恢复；禁止没有注入失败就期待错误文案。jsonContains递归匹配子集。
 13. 每项用全新空数据库启动，步骤内刷新保留数据；用例不得依赖其他AC创建的记录。按钮名称必须唯一可访问（例如“将活着标记已读”“删除活着”），描述与步骤必须一致；回车必须press，删除必须expectAbsent，字段清空必须expectValue。禁止对全页expectAbsent("已读")等常驻指标文字：只断言目标书目独有文案的消失，状态用API jsonContains断言；数组按API实际排序规划。布局375/768/1440自动检查溢出，不要用文字断言冒充行为测试。
@@ -73,7 +73,7 @@ export const BUILD_SYSTEM_PROMPT = `你是工程师。根据需求规格、分�
 输出要求：
 1. 只输出该文件的完整内容：第一行就是代码（如 "use client" 或 import），不要任何解释、思考过程或 Markdown 代码块围栏。
 2. 严格遵循 .atoms/CONVENTIONS.md 的目录分层与写法约定。
-3. 页面跳转只能使用 next/link 或 useRouter，禁止手写以 / 开头的绝对地址（应用部署在子路径下）。
+3. 默认单页应用：新建/编辑/列表/详情用同页面板、抽屉或弹窗，本地状态或hash切换，避免router.push/refresh造成普通操作等待服务端页面。轻量表单同步打开；重型编辑器、3D和图表用next/dynamic按需加载，不把所有模块塞入首屏包；列表分页或只读取首屏摘要，服务端入口保持轻量，数据库代码只在服务端/API使用。保留真实API、持久化、提交防重、未保存修改保护、错误重试、弹窗焦点与Escape。必要页面跳转使用模板NavigationLink（next/link）与app/loading.tsx提供即时反馈，useRouter仅用于必要导航；应用部署在子路径下，不能用window.location硬刷新业务操作。
 4. 浏览器端请求（fetch）必须使用 lib/api-path.ts 的 apiPath("/api/...") 拼接，禁止直接写 fetch("/api/...")。
 5. 交互组件按需添加 "use client"；复用 components/ui/ 时一律**命名导入 + 小写文件名**：\`import { Button } from "@/components/ui/button"\`、\`import { Card, CardContent } from "@/components/ui/card"\`；禁止 \`import Button from "@/components/ui/Button"\` 这类默认导入与大小写混用（模板只有命名导出）。
 6. UI 组件属性严格白名单，写错会直接 tsc 失败：

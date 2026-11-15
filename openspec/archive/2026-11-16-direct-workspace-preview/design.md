@@ -1,0 +1,3 @@
+用户已确认直接开发预览方案。默认preview在项目根目录ensureProjectDependencies，成功后startService(sourceDir:'.')复用进程；依赖树重新安装或显式restart时restartService。安装失败与取消不启动；启动入口不主动请求首页、不构建生产产物、不复制候选。安装返回dependenciesChanged用于进程更新判断。默认files PUT与generation pipeline不pin快照；full保持原快照行为。正在运行的dev反映源码错误，修改正确后恢复，不承诺旧版页面回滚。业务数据不动，安全隔离、端口池、mutation lease保持。已运行旧候选在下一次普通运行切换根目录，历史候选仅在成功切换后按已有保护回收。
+
+补充审查：运行时SQLite持久化启动依赖指纹，覆盖独立安装工具更新依赖后再次启动的情况；跨目录/依赖切换使用恢复事务。调用者AbortSignal合并运行器信号，启动取消不会留下新进程。默认生成验证同样复用根目录服务。已有依赖命中直接返回，不在打开预览时删除大下载缓存。真实隔离开发服务复用/HMR/显式重启已通过。

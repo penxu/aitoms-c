@@ -1,0 +1,47 @@
+[
+  {
+    "path": "components/projects/project-form.tsx",
+    "before": "ed50a410fe003669772bef8b4e0c8f01dffbe3ea796f79b39a2129b059ac793c",
+    "after": "7fdf91376642056d73e795859502b36b3fb57dd28b1d8ad1226c88390c8417fe"
+  },
+  {
+    "path": "components/room/room-application.tsx",
+    "before": null,
+    "after": "2996a30245a8af2fe8b1b11f7a75cf16cf60f5ef10febbd855a74b3e7b1f7b0c"
+  },
+  {
+    "path": "components/studio/studio-client.tsx",
+    "before": "9b9e405fdef5c781e1117c792120683c7ef6657377e2bd870f270ba1b7f9ab9e",
+    "after": "9fe1c91d98c11baf8210226b8363771e8c2edb2508de4f179b71fa691c54adff"
+  },
+  {
+    "path": "app/loading.tsx",
+    "before": null,
+    "after": "936778ce4dfb4b107ae55ccc47fd8092aabce1a5cbf9634f37a13fdbf9c7b3f8"
+  },
+  {
+    "path": "app/projects/[id]/page.tsx",
+    "before": "a0204555e3825b75174de0d91b26c550ac38f4cdc0558891ba974e2810c3fb61",
+    "after": "11c07cdd3deb1f6418a3b8218677b7ee3181f51e2fa1ffb538096248e242ace6"
+  },
+  {
+    "path": "app/projects/new/page.tsx",
+    "before": "01ed16dbaf07ba929fcc4c10b50d84fba50583fcb27a82b26cf4c3d3cd24c61a",
+    "after": "1271665410be845db8b7725b7783f5b31b6d7432a1ec2f34bebcac65df7347c7"
+  },
+  {
+    "path": "app/projects/page.tsx",
+    "before": "7298870547842a7cfe861aff101b5ad9af55bff74d7854d196e2125fb0ac98b0",
+    "after": "464f5d0a8813d03d8ee160f727ac98ad357fd2306dafbcc3a17d77ccb52ffe1a"
+  },
+  {
+    "path": "next.config.ts",
+    "before": "eca7e320c08874c4fdc31e7838c9c2463c414b8e6c69341afe4aef57798fabe6",
+    "after": "004ecb394669ca5c290a5b9e855202a072dc4fb47f3cf70687b754388fa01ea7"
+  },
+  {
+    "path": "app/page.tsx",
+    "before": "79647270fc54ccdbce026ccd0a05a33f744f573c80a73c094dc0392238ab7ccf",
+    "after": "3b29770798ea9590efbf09aa2179bd46237f02f3c8b59f81d034758c3a7f1b4b"
+  }
+]

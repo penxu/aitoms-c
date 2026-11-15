@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import next from "next";
 import nextEnv from "@next/env";
+import {previewUpgradeHeaders} from "./preview-proxy-headers.mjs";
 import {markInterruptedGenerationRows} from "./recover-generations.mjs";
 
 /**
@@ -17,7 +18,10 @@ const dev = process.env.NODE_ENV !== "production";
 nextEnv.loadEnvConfig(process.cwd(), dev);
 
 const port = Number(process.env.PORT || 3000);
-const app = next({ dev });
+// Next 会在首个 HTTP 请求时向 httpServer 自动注册 upgrade 监听器。
+// 为它提供独立、不监听端口的事件宿主，避免与 /p/ 代理争抢同一个 socket。
+const nextUpgradeServer = createServer();
+const app = next({ dev, httpServer: nextUpgradeServer });
 const handle = app.getRequestHandler();
 
 function databasePath() {
@@ -61,7 +65,6 @@ async function main() {
   await markInterruptedGenerations();
   await app.prepare();
 
-  const upgradeHandler = app.getUpgradeHandler();
   const server = createServer((req, res) => {
     handle(req, res);
   });
@@ -70,7 +73,7 @@ async function main() {
     const match = /^\/p\/([A-Za-z0-9_-]+)(\/.*)?$/.exec(req.url || "");
     if (!match) {
       // 交给 Next.js 自己的 HMR WebSocket
-      upgradeHandler(req, socket, head);
+      if (!nextUpgradeServer.emit("upgrade", req, socket, head)) socket.destroy();
       return;
     }
 
@@ -90,9 +93,11 @@ async function main() {
       return;
     }
 
+    let headers;
+    try { headers = previewUpgradeHeaders(req.headers, targetPort); }
+    catch { socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); return; }
+
     const upstream = net.connect(targetPort, "127.0.0.1", () => {
-      const headers = { ...req.headers };
-      headers.host = `127.0.0.1:${targetPort}`;
 
       const headerLines = Object.entries(headers)
         .filter(([, v]) => v !== undefined)

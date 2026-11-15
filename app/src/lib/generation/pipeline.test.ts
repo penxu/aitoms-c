@@ -67,3 +67,16 @@ test('需求讨论等待回答时不搭建工程，也不固定旧预览', async
  assert.equal(scaffolded,false);assert.equal(pinned,false);
  assert.ok(emitted.some(e=>(e as {type:string;status:string}).type==='run'&&(e as {status:string}).status==='waiting'));
 });
+
+for(const mode of ['preview','full'])test(`${mode}生成开始只有full固定旧预览`,async()=>{
+ let snapshots=0,scaffolded=false;
+ const js=stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm,'').replace(/^export /gm,'');
+ const context={confirmedRequirement:()=> '需求',resolveInsideProject:()=>'/unused/plan',fs:{existsSync:()=>false},runDiscussionStage(){},runSpecStage(){},runPlanStage(){},runBuildStage(){},runVerifyStage(){},config:{generationStageTimeoutMs:1000,generationVerificationMode:mode},recordProgress(){},setInterval,clearInterval,
+  withDeadline:(s:AbortSignal,_ms:number,action:(s:AbortSignal)=>unknown)=>action(s),STAGE_ORDER:['discuss','scaffold','spec','plan','build','verify'],STAGE_ROLES:{},
+  getEventBus:()=>({emit(){}}),releaseEventBus(){},updateProjectStatus(){},updateGenerationRun(){},
+  pinServiceToSnapshot:async()=>{snapshots++;},scaffoldProject:async()=>{scaffolded=true;throw Error('stop fixture after scaffold');},ScaffoldConflictError:class extends Error{},
+ };
+ const execute=vm.runInNewContext(`${js}\nexecuteRun`,context);
+ await execute({id:'r',projectId:'p',stage:'scaffold',requirement:'需求'},new AbortController().signal);
+ assert.equal(scaffolded,true);assert.equal(snapshots,mode==='full'?1:0);
+});

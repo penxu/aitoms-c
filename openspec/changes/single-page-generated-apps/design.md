@@ -1,0 +1,7 @@
+## Decisions
+SPEC/PLAN/BUILD提示词统一要求默认仅根页面，业务API保留真实路由，分享/认证回调等必要页面例外。禁止把所有重型模块静态导入首页：基础壳和表单轻量加载，编辑器dynamic import并有加载、错误及重试状态。保留持久化、键盘可访问性和未保存保护。
+模板提供NavigationLink（useLinkStatus）及app/loading.tsx，路由保留时提供pending反馈。普通同页操作用button，不触发Next路由编译。
+HMR升级只把与请求Host匹配的Origin改为本机上游Origin，并覆盖forwarded-host/proto；跨源Origin拒绝，无通配allowedDevOrigins。
+房间应用复用ProjectForm、StudioClient与原API；首页服务端一次读取初始项目/素材统计，客户端维护hash视图、列表更新、同页dialog，编辑器按需加载。旧入口映射回根工作台对应hash。修改先在隔离开发预览验证，再保存线上源码并重启开发服务；数据库不改。
+
+实际线上复验揭示NextCustomServer首个HTTP请求自动注册upgrade，会与自定义/p代理同时处理socket。平台传入独立、不listen的httpServer事件宿主，非/p升级emit给Next，预览升级独占代理；真实平台生产与开发模式均验证通过。线上平台宿主尚无部署通道，源码改造与dev启动已完成，公网交互需部署服务器补丁后复验。

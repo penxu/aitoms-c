@@ -148,7 +148,7 @@ async function executeRun(run: GenerationRunRow, signal: AbortSignal): Promise<v
       return;
     }
 
-    if (stage !== "discuss" && !pinned) {
+    if (config.generationVerificationMode === "full" && stage !== "discuss" && !pinned) {
       await withDeadline(signal, config.generationStageTimeoutMs, async pinSignal => {
         pinSignal.throwIfAborted();
         await pinServiceToSnapshot(projectId, async () => {

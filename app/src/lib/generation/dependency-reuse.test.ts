@@ -45,10 +45,10 @@ test('复制到候选目录的匹配依赖不再调用pnpm重建',async()=>{
  const root=fixture(),candidate=path.join(root,'candidate');
  try{
   for(const name of ['package.json','pnpm-lock.yaml','node_modules'])fs.cpSync(path.join(root,name),path.join(candidate,name),{recursive:true});
-  let runs=0;
+  let runs=0,cleanups=0;
   const js=stripTypeScriptTypes(fs.readFileSync(new URL('./scaffold.ts',import.meta.url),'utf8')).replace(/^import[\s\S]*?;\n/gm,'').replace(/^export /gm,'');
-  const ensure=vm.runInNewContext(`${js}\nensureProjectDependencies`,{fs,path,pruneInstalledDownloadCache:async()=>false,config:{},resolveInsideProject:(_id:string,rel:string)=>rel==='.'?candidate:path.join(candidate,rel),ensureWorkspaceRuntime:async()=>runtime,workspaceExecutionRuntime:()=>runtime,...cache,installDependenciesCommand:()=> 'pnpm install',restoreNodeModulesCache:async()=>false,runCommand:async()=>{runs++;return{exitCode:0};}});
-  const result=await ensure('p');assert.equal(runs,0,'不能再次运行pnpm导致复制依赖被重建');assert.equal(result.exitCode,0);
+  const ensure=vm.runInNewContext(`${js}\nensureProjectDependencies`,{fs,path,pruneInstalledDownloadCache:async()=>{cleanups++;return false;},config:{},resolveInsideProject:(_id:string,rel:string)=>rel==='.'?candidate:path.join(candidate,rel),ensureWorkspaceRuntime:async()=>runtime,workspaceExecutionRuntime:()=>runtime,...cache,installDependenciesCommand:()=> 'pnpm install',restoreNodeModulesCache:async()=>false,runCommand:async()=>{runs++;return{exitCode:0};}});
+  const result=await ensure('p');assert.equal(runs,0,'不能再次运行pnpm导致复制依赖被重建');assert.equal(result.exitCode,0);assert.equal(result.dependenciesChanged,false);assert.equal(cleanups,0,'复用依赖不能等待大缓存删除');
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
@@ -77,7 +77,9 @@ test('安装入口命中模板缓存后写成功指纹；定制依赖及缓存�
      return {exitCode:0};
     },
    });
-   assert.equal((await api('p',undefined,undefined,'.',mode==='extra'?['clsx']:[])).exitCode,mode==='installFailure'?1:0);
+   const prepared=await api('p',undefined,undefined,'.',mode==='extra'?['clsx']:[]);
+   assert.equal(prepared.exitCode,mode==='installFailure'?1:0);
+   if(mode!=='installFailure')assert.equal(prepared.dependenciesChanged,true);
    assert.equal(installs,mode==='reuse'||mode==='installFailure'?0:1);
    assert.equal(reuses,mode==='extra'?0:1);
    if(mode==='reuse')assert.equal(JSON.parse(fs.readFileSync(path.join(root,'node_modules/.atoms-runtime.json'),'utf8')).fingerprint,'fingerprint');

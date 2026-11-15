@@ -249,7 +249,7 @@ export function createHarnessTools(projectId: string, baseSignal?:AbortSignal) {
       inputSchema: z.object({}),
       execute: async function* (_input, { abortSignal }) {
         yield* streamInstall(async(report,signal)=>{
-          const result=await refreshProjectPreview(projectId,signal,report);
+          const result=await refreshProjectPreview(projectId,signal,report,{restart:true});
           return {...result,previewUrl:`/p/${projectId}/`};
         },combined(abortSignal),"正在更新应用预览");
       },

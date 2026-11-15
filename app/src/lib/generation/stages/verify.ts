@@ -20,7 +20,7 @@ import { generateText } from "ai";
 import { getModel } from "@/lib/ai/model";
 import { config } from "@/lib/config";
 import { addRunTokens } from "@/lib/db/generation";
-import { restartService } from "@/lib/runner";
+import { restartService, startService } from "@/lib/runner";
 import { runCommand } from "@/lib/workspace/command";
 import { ensureWorkspaceRuntime } from "@/lib/workspace/execution";
 import {sanitizeInstallOutput} from '../install-progress';
@@ -167,11 +167,9 @@ async function startDevelopmentPreview(ctx: StageContext, dataDir: string): Prom
   ctx.log("info", "类型检查通过，启动开发预览；页面首次访问时在后台编译，无需等待");
   try {
     // runner 内部只等端口监听，不会主动请求页面；编译由浏览器首次访问触发。
-    await restartService(ctx.projectId, {
+    await startService(ctx.projectId, {
       sourceDir: ".",
-      validate: async (_result, serviceSignal) => {
-        AbortSignal.any([ctx.signal, serviceSignal]).throwIfAborted();
-      },
+      signal:ctx.signal,
     });
   } catch (error) {
     if (ctx.signal.aborted) return { status: "aborted" };

@@ -39,7 +39,7 @@ export async function POST(
       stopService(id);
       return NextResponse.json({ status: "stopped", port: null, previewUrl: null });
     }
-    const result = await refreshProjectPreview(id, req.signal);
+    const result = await refreshProjectPreview(id, req.signal,undefined,{restart:action === "restart"});
     return NextResponse.json({
       status: "running",
       port: result.port,

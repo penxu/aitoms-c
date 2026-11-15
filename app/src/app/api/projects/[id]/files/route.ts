@@ -1,5 +1,6 @@
 import { pinServiceToSnapshot } from "@/lib/runner";
 import { prepareCandidate } from "@/lib/generation/candidate-snapshot";
+import { config } from "@/lib/config";
 import { acquireProjectMutation, ProjectBusyError } from "@/lib/workspace/mutations";
 import { NextResponse } from "next/server";
 import { listFiles, readFileForEditor, writeFile } from "@/lib/workspace/files";
@@ -38,7 +39,7 @@ export async function PUT(
   let release: (() => void) | undefined;
   try {
     release = acquireProjectMutation(id, "editor");
-    await pinServiceToSnapshot(id, () => prepareCandidate(id, `editor-${Date.now()}-baseline`));
+    if(config.generationVerificationMode === "full")await pinServiceToSnapshot(id, () => prepareCandidate(id, `editor-${Date.now()}-baseline`));
     writeFile(id, body.path, body.content);
     return NextResponse.json({ ok: true });
   } catch (err) {

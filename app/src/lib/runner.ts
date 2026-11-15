@@ -1,4 +1,5 @@
 import {RuntimeLogs} from "./workspace/runtime-logs";
+import {dependencyFingerprint} from "./generation/dependency-cache";
 import { waitForPreviewSocket, waitForPreviewStart } from "./workspace/runtime-start";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
@@ -129,7 +130,7 @@ export interface StartResult {
   command: string;
 }
 
-export interface ServiceOptions { sourceDir?: string }
+export interface ServiceOptions { sourceDir?: string; signal?:AbortSignal }
 
 export interface ServiceSwitchOptions extends ServiceOptions {
   /** 放在切换事务内执行；失败自动恢复切换前的源码。 */
@@ -219,13 +220,16 @@ async function waitForStopped(identity?: ProcessIdentity): Promise<void> {
 }
 
 async function startCurrent(projectId: string, options: ServiceOptions, signal: AbortSignal): Promise<StartResult> {
+  signal.throwIfAborted();
   const cwd = sourceRoot(projectId, options);
   const previous = stopping.get(projectId);
   await waitForStopped(previous);
   if (stopping.get(projectId) === previous) stopping.delete(projectId);
   const existing = recoverRuntime(projectId);
-  if (existing?.identity.cwd === cwd) return { port: existing.port, pid: existing.identity.pid, command: "already-running" };
-  if (existing) await waitForStopped(stopCurrent(projectId));
+  const dependencyKey=dependencyFingerprint(cwd);
+  if (existing?.identity.cwd === cwd && (identities.get(projectId)?.dependencyKey??null)===dependencyKey) return { port: existing.port, pid: existing.identity.pid, command: "already-running" };
+  // 跨源码目录或依赖变化也走切换事务；不能先丢掉旧候选再尝试启动。
+  if (existing) return replaceCurrent(projectId,options,signal);
   signal.throwIfAborted();
   await ensureWorkspaceRuntime(cwd, signal);
   signal.throwIfAborted();
@@ -266,7 +270,7 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
       signal.throwIfAborted();
     }
     if (!identity || identity.cwd !== cwd) throw new Error(`无法核对预览进程身份：${startupFailure ?? "工作目录或启动标识不可用"}`);
-    identities.save(projectId, identity, execution.cleanupId);
+    identities.save(projectId, identity, execution.cleanupId,dependencyFingerprint(cwd));
     runtimes.set(projectId, { child, identity, port, startedAt: Date.now(), cleanup: cleanExecution });
     upsertProcess({ id: `proc_${projectId}`, projectId, pid: identity.pid, port, command });
     updateProjectStatus(projectId, "running", { assignedPort: port });
@@ -300,7 +304,7 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
 }
 
 export function startService(projectId: string, options: ServiceOptions = {}): Promise<StartResult> {
-  return gate.start(projectId, signal => startCurrent(projectId, options, signal), options.sourceDir);
+  return gate.start(projectId, signal => startCurrent(projectId, options, options.signal?AbortSignal.any([signal,options.signal]):signal), options.sourceDir);
 }
 
 export function stopService(projectId: string): { stopped: boolean } {
@@ -342,7 +346,7 @@ async function replaceCurrent(projectId: string, options: ServiceSwitchOptions, 
 }
 
 export function restartService(projectId: string, options: ServiceSwitchOptions = {}): Promise<StartResult> {
-  return gate.restart(projectId, () => undefined, signal => replaceCurrent(projectId, options, signal));
+  return gate.restart(projectId, () => undefined, signal => replaceCurrent(projectId, options, options.signal?AbortSignal.any([signal,options.signal]):signal));
 }
 
 /** BUILD写源码前将旧根目录服务固定到独立快照；复制失败不触碰旧服务。 */

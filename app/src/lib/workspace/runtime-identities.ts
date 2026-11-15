@@ -12,18 +12,20 @@ export class RuntimeIdentities {
     )`);
     const columns = db.pragma("table_info(runtime_identities)") as { name: string }[];
     if (!columns.some(column => column.name === "cleanup_id")) db.exec("ALTER TABLE runtime_identities ADD COLUMN cleanup_id TEXT");
+    if (!columns.some(column => column.name === "dependency_key")) db.exec("ALTER TABLE runtime_identities ADD COLUMN dependency_key TEXT");
   }
-  save(id: string, identity: ProcessIdentity, cleanupId?: string): void {
-    this.db.prepare(`INSERT INTO runtime_identities (project_id, pid, start_token, cwd, started_at, cleanup_id) VALUES (?, ?, ?, ?, ?, ?)
+  save(id: string, identity: ProcessIdentity, cleanupId?: string, dependencyKey?: string | null): void {
+    this.db.prepare(`INSERT INTO runtime_identities (project_id, pid, start_token, cwd, started_at, cleanup_id, dependency_key) VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(project_id) DO UPDATE SET pid=excluded.pid, start_token=excluded.start_token,
-      cwd=excluded.cwd, started_at=excluded.started_at, cleanup_id=excluded.cleanup_id`).run(id, identity.pid, identity.startToken, identity.cwd, identity.startedAt, cleanupId ?? null);
+      cwd=excluded.cwd, started_at=excluded.started_at, cleanup_id=excluded.cleanup_id, dependency_key=excluded.dependency_key`).run(id, identity.pid, identity.startToken, identity.cwd, identity.startedAt, cleanupId ?? null,dependencyKey??null);
   }
-  get(id: string): (ProcessIdentity & { cleanupId?: string }) | null {
-    const row = this.db.prepare('SELECT pid, start_token AS startToken, cwd, started_at AS startedAt, cleanup_id AS cleanupId FROM runtime_identities WHERE project_id=?').get(id);
+  get(id: string): (ProcessIdentity & { cleanupId?: string; dependencyKey?:string }) | null {
+    const row = this.db.prepare('SELECT pid, start_token AS startToken, cwd, started_at AS startedAt, cleanup_id AS cleanupId, dependency_key AS dependencyKey FROM runtime_identities WHERE project_id=?').get(id);
     if (!row) return null;
-    const result = row as ProcessIdentity & { cleanupId?: string | null };
+    const result = row as ProcessIdentity & { cleanupId?: string | null;dependencyKey?:string|null };
     if (result.cleanupId === null) delete result.cleanupId;
-    return result as ProcessIdentity & { cleanupId?: string };
+    if (result.dependencyKey === null) delete result.dependencyKey;
+    return result as ProcessIdentity & { cleanupId?: string;dependencyKey?:string };
   }
   clearCleanup(id: string): void { this.db.prepare("UPDATE runtime_identities SET cleanup_id=NULL WHERE project_id=?").run(id); }
   remove(id: string): void { this.db.prepare('DELETE FROM runtime_identities WHERE project_id=?').run(id); }

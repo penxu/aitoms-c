@@ -11,6 +11,7 @@ export interface ApplicationProfile {
 }
 
 const COMPONENTS: ApplicationProfile["components"] = [
+  { importPath: "@/components/app/navigation-link", exports: ["NavigationLink"], usage: "必要的独立页面导航，API同next/link，pending时立即显示正在打开；普通同页业务操作用按钮。" },
   { importPath: "@/components/app/app-shell", exports: ["AppShell"], usage: "页面唯一主容器；variant=showcase/admin/form/game，brand/navigation/actions/footer为ReactNode，children为正文，不再嵌套main。" },
   { importPath: "@/components/app/page-header", exports: ["PageHeader"], usage: "title必填并输出h1；eyebrow/description/actions可选，页面只用一个主标题。" },
   { importPath: "@/components/app/empty-state", exports: ["EmptyState"], usage: "title必填，description/icon/action可选；零数据提供真实引导操作，默认role=status。" },
@@ -50,6 +51,7 @@ export function getApplicationProfile(requirement: string): ApplicationProfile {
       "长列表/表格放入table-scroll容器；图片与游戏区域受容器宽度约束，页面本身不横向溢出。",
     ],
     stateRules: [
+      "默认单页工作台，同页完成新建、编辑、详情与列表；轻量表单立即打开，重型编辑器按需加载，保留未保存保护。必要路由跳转用NavigationLink和loading边界反馈。",
       "异步操作区分初始、加载、空数据、错误失败、成功状态；错误给出可执行的重试或修正入口。",
       "提交或保存期间防止重复操作；保留已填写信息，在完成时反馈真实结果，不展示伪造成功。",
       kind === "game" ? "游戏必须支持未开始、进行中、暂停或失焦、结束及重新开始；键盘与触屏均可操作。"
