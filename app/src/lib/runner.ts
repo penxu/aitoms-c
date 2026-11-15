@@ -100,11 +100,11 @@ function buildStartCommand(root: string, port: number): string {
     }
   }
 
-  if (deps.next && scripts.start && fs.existsSync(path.join(root,".next","BUILD_ID"))) {
+  if (config.generationVerificationMode === "full" && deps.next && scripts.start && fs.existsSync(path.join(root,".next","BUILD_ID"))) {
     return `${executable} ${scriptArguments(pm,"start",["-p",String(port),"-H","127.0.0.1"]).join(" ")}`;
   }
   if (deps.next && scripts.dev) {
-    return `${executable} ${scriptArguments(pm,"dev",["-p",String(port),"-H","127.0.0.1"]).join(" ")}`;
+    return `${executable} ${scriptArguments(pm,"dev",["--webpack","-p",String(port),"-H","127.0.0.1"]).join(" ")}`;
   }
   if (deps.vite && scripts.dev) {
     return `${executable} ${scriptArguments(pm,"dev",["--port",String(port),"--host","127.0.0.1"]).join(" ")}`;

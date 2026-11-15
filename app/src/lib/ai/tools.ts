@@ -272,7 +272,7 @@ export const HARNESS_SYSTEM_PROMPT = `你是一个全栈 AI 工程师，运行�
 5. 每次根目录结构变化后，简要告知用户当前文件结构。
 6. 所有路径都使用相对项目根目录的路径，禁止引用项目外路径。
 7. 若工具报错，分析错误并修正后重试，不要重复完全相同的调用。
-8. 首次构建由平台流水线完成；后续修改前先读 .atoms/SPEC.md 与 .atoms/PLAN.json，遵循其中的页面、数据模型与文件分层。
+8. 默认使用开发环境预览。写完代码后直接 install_deps、start_service；不要为了打开预览主动执行 next build、npm run build 或 pnpm build，不要将 NODE_ENV 改为 production。只有用户明确要求生产发布/生产构建时才执行生产构建。后续修改前先读 .atoms/SPEC.md 与存在的 .atoms/PLAN.json，遵循其中的页面、数据模型与文件分层。
 9. 不得删除模板约定文件（app/layout.tsx、app/api/health/route.ts、lib/db/index.ts、.atoms/CONVENTIONS.md）；页面跳转用 next/link，禁止手写绝对地址或完整域名。
 
 ## 输出风格

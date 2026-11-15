@@ -1,0 +1,4 @@
+- [x] Default preview runs dev without production build in every preview entry.
+- [x] Reports distinguish dev readiness from production build success.
+- [x] Full verification and production publishing remain production-based.
+- [x] Verify tests, actual dev behavior, typecheck, lint, build and review.

@@ -25,16 +25,17 @@ export async function checkCandidate(ctx:StageContext,relativeRoot:string,dataDi
   const port=await allocatePort();const controller=new AbortController();
   const sessionSignal=AbortSignal.any([signal,controller.signal]);
   let output='';
-  const running=runCommand(ctx.projectId,`${pnpmShellCommand()} run start -p ${port} -H 127.0.0.1`,{
+  const development=config.generationVerificationMode !== 'full';
+  const running=runCommand(ctx.projectId,`${pnpmShellCommand()} run ${development?'dev --webpack':'start'} -p ${port} -H 127.0.0.1`,{
    cwd:relativeRoot,signal:sessionSignal,timeoutMs:config.acceptanceTimeoutMs+60000,
-   env:{PORT:String(port),HOSTNAME:'127.0.0.1',NODE_ENV:'production',ATOMS_DATA_DIR:databaseDir,DATABASE_PATH:path.join(databaseDir,'app.db'),ATOMS_BASE_PATH:basePath,NEXT_PUBLIC_ATOMS_BASE_PATH:basePath},
+   env:{PORT:String(port),HOSTNAME:'127.0.0.1',NODE_ENV:development?'development':'production',ATOMS_DATA_DIR:databaseDir,DATABASE_PATH:path.join(databaseDir,'app.db'),ATOMS_BASE_PATH:basePath,NEXT_PUBLIC_ATOMS_BASE_PATH:basePath},
   }).then(result=>{output=[result.stdout,result.stderr].join('\n');return result;});
   try {
    const healthy=await Promise.race([waitForHealth(port,60000,basePath,sessionSignal),running.then(()=>false)]);
    sessionSignal.throwIfAborted();
    if(!healthy){controller.abort();await running;throw Error(`候选服务未就绪：${output.slice(-6000)}`); }
    releasePortReservation(port);
-   if(config.generationVerificationMode !== 'full') return await checkPreviewHome(`http://127.0.0.1:${port}${basePath}`,sessionSignal);
+   if(development) return await checkPreviewHome(`http://127.0.0.1:${port}${basePath}`,sessionSignal,undefined,60000);
    return await runAcceptance(`http://127.0.0.1:${port}${basePath}`,checks,sessionSignal,undefined,config.browserChannel,config.chromiumPath,resolveInsideProject(ctx.projectId,`.atoms/acceptance/${ctx.runId}/${session}`,{allowMissing:true}));
   }finally {controller.abort();try{await running;}finally{releasePortReservation(port);}}
  };

@@ -97,13 +97,18 @@ function loadPlanFromDisk(projectId: string): GenerationPlan {
 function summaryText(projectId: string, plan: GenerationPlan | null, runId: string): string {
   const count = plan ? plan.items.length : 0;
   let businessVerified = false;
-  try { businessVerified = JSON.parse(readFile(projectId, ".atoms/VERIFICATION.json")).businessVerified === true; } catch { /* 旧工程可能尚无报告。 */ }
+  let developmentPreview = false;
+  try {
+    const report=JSON.parse(readFile(projectId, ".atoms/VERIFICATION.json"));
+    businessVerified=report.businessVerified === true;
+    developmentPreview=report.previewMode === "development";
+  } catch { /* 旧工程可能尚无报告。 */ }
   return [
-    businessVerified ? "工程生成、技术检查和计划内业务验收已完成：" : "工程生成与技术检查完成，业务验收尚未完成：",
+    developmentPreview ? "工程源码已生成，开发预览已就绪：" : businessVerified ? "工程生成、技术检查和计划内业务验收已完成：" : "工程生成与技术检查完成，业务验收尚未完成：",
     `- ${STAGE_ROLES.spec.name}（${STAGE_ROLES.spec.title}）完成需求拆解；`,
     `- ${STAGE_ROLES.plan.name}（${STAGE_ROLES.plan.title}）产出 ${count} 个文件的实现计划；`,
     `- ${STAGE_ROLES.build.name}（${STAGE_ROLES.build.title}）完成全部文件实现；`,
-    `- ${STAGE_ROLES.verify.name}（${STAGE_ROLES.verify.title}）${businessVerified ? "通过生产构建、真实浏览器和计划内业务验收；外部服务及公网访问仍需确认。" : "通过生产构建与预览健康检查；完整业务流程仍需验证。"}`,
+    `- ${STAGE_ROLES.verify.name}（${STAGE_ROLES.verify.title}）${developmentPreview ? "开发服务与首页检查通过；未执行生产构建与完整业务验收。" : businessVerified ? "通过生产构建、真实浏览器和计划内业务验收；外部服务及公网访问仍需确认。" : "通过生产构建与预览健康检查；完整业务流程仍需验证。"}`,
     "验证报告：.atoms/VERIFICATION.json（已自动检查与待人工验证清单）",
     `预览：/p/${projectId}/`,
     `导出：/api/projects/${projectId}/export`,

@@ -24,6 +24,14 @@ test("技术检查通过仍明确业务、外部服务和公网待验证", async
   assert.match(report.pendingManual.join("\n"), /SMTP/);
   assert.match(report.pendingManual.join("\n"), /公网/);
 });
+
+test('开发预览报告不能声称生产构建通过',async()=>{
+ const {createVerificationReport}=await import('./verification-report.ts');
+ const report=createVerificationReport({runId:'dev',sourceHash:'abc',spec:'',developmentPreview:true});
+ assert.equal(report.checked.find(item=>item.id==='build')?.status,'skipped');
+ assert.equal(report.previewMode,'development');assert.equal(report.businessVerified,false);
+ assert.ok(report.pendingManual.some(item=>item.includes('生产构建')));
+});
 test("各阶段复用相同设计及业务交付约束", () => {
   for (const heading of ["设计规则", "核心流程", "验收清单", "外部依赖"]) assert.ok(SPEC_SYSTEM_PROMPT.includes(heading));
   for (const prompt of [PLAN_SYSTEM_PROMPT, BUILD_SYSTEM_PROMPT]) {

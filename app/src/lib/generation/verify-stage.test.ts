@@ -12,14 +12,14 @@ const require = nodeModule.createRequire(import.meta.url);
 const { z } = require("zod");
 const source = fs.readFileSync(new URL("./stages/verify.ts", import.meta.url), "utf8");
 
-for (const { cached, blocked } of [{ cached: true, blocked: false }, { cached: false, blocked: false }, { cached: false, blocked: true }]) test(`VERIFY ${cached ? "缓存" : "安装"}${blocked ? "识别外部拦截且不重复修复" : "与构建隔离数据并保存真实报告"}`, async () => {
+for (const { cached, blocked, mode } of [{ cached: true, blocked: false, mode:'full' }, { cached: false, blocked: false, mode:'full' }, { cached: false, blocked: true, mode:'full' },{cached:false,blocked:false,mode:'preview'}]) test(`VERIFY ${mode} ${cached ? "缓存" : "安装"}${blocked ? "识别外部拦截且不重复修复" : "与构建隔离数据并保存真实报告"}`, async () => {
   const commands: { command: string; env?: Record<string, string> }[] = [];
   let inBuildSlot = false;
   let report: ReturnType<typeof createVerificationReport> | undefined;
   const js = stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm, "").replace(/^export \{[^\n]*\n/gm, "").replace(/^export /gm, "");
   const context = {
     ensureWorkspaceRuntime:async()=>({backend:'native'}),
-    AbortSignal, z, fs, path, os, infrastructureFailure, checkImportClosure:()=>[], prepareCandidate:async()=>({relativeRoot:".atoms/candidates/test",absoluteRoot:"/unused/candidate"}),checkCandidate:async()=>[], ensureProjectDependencies:async (_id:string,_signal:AbortSignal,env:Record<string,string>)=>{commands.push({command:"fixed-pnpm-cli install --no-frozen-lockfile --registry=https://registry.npmjs.org",env});return{exitCode:0,aborted:false}}, createVerificationReport, pnpmShellCommand: () => "fixed-pnpm-cli", config: { pnpmStoreDir: "/tmp/test-store" },
+    AbortSignal, z, fs, path, os, infrastructureFailure, checkImportClosure:()=>[], prepareCandidate:async()=>({relativeRoot:".atoms/candidates/test",absoluteRoot:"/unused/candidate"}),checkCandidate:async()=>[], ensureProjectDependencies:async (_id:string,_signal:AbortSignal,env:Record<string,string>)=>{commands.push({command:"fixed-pnpm-cli install --no-frozen-lockfile --registry=https://registry.npmjs.org",env});return{exitCode:0,aborted:false}}, createVerificationReport, pnpmShellCommand: () => "fixed-pnpm-cli", config: {generationVerificationMode:mode, pnpmStoreDir: "/tmp/test-store" },
     withBuildSlot: async (action: () => Promise<unknown>) => {
       inBuildSlot = true;
       try { return await action(); } finally { inBuildSlot = false; }
@@ -47,6 +47,11 @@ for (const { cached, blocked } of [{ cached: true, blocked: false }, { cached: f
     return;
   }
   assert.equal(result.ok, true);
+  if(mode==='preview'){
+    assert.equal(commands.some(item=>item.command.includes(' build')),false,'dev预览不应执行生产构建');
+    assert.equal(report?.checked.find(item=>item.id==='build')?.status,'skipped');
+    assert.equal(report?.previewMode,'development');return;
+  }
   assert.ok(commands.some(item=>item.command.includes(" install ")), "依赖必须完成实际校验安装");
   const build = commands.find((item) => item.command.includes(" build --webpack"));
   assert.ok(build?.env?.ATOMS_DATA_DIR, "构建必须使用独立数据库目录");

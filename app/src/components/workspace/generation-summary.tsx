@@ -46,7 +46,7 @@ export function GenerationSummary({ view, events, onOpenProcess, onCancel, onRet
       <div className="summary-heading">
         <span className="studio-avatar"><Sparkles size={15} /></span>
         <div className="summary-heading-text">
-          <strong>{codeGenerated ? (running ? "代码已生成，正在准备运行与验证" : "代码已生成，运行验证尚未完成") : running ? "正在把想法变成应用" : failed ? "这一步需要处理" : "应用已完成构建"}</strong>
+          <strong>{codeGenerated ? (running ? "代码已生成，正在准备运行与验证" : "代码已生成，运行验证尚未完成") : running ? "正在把想法变成应用" : failed ? "这一步需要处理" : "应用预览已就绪"}</strong>
           <span>{codeGenerated ? "源码已保存，可查看和下载；重试验证无需重新生成代码" : running ? "以下是真实执行进度" : failed ? "文件与执行记录已保留，可从失败阶段重试" : "可以打开预览，继续打磨细节"}</span>
         </div>
         {running ? <LoaderCircle size={15} className="animate-spin" /> : failed ? <AlertCircle size={16} /> : <Check size={16} />}

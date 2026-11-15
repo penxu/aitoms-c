@@ -160,6 +160,11 @@ async function buildAndStart(ctx: StageContext, dataDir: string): Promise<Attemp
       return { status: "failed", log: `[tsc]\n${errorLogOf(tsc.stdout, tsc.stderr)}` };
     }
 
+    if (config.generationVerificationMode !== "full") {
+      ctx.log("info", "类型检查通过，直接启动开发预览，跳过生产构建与全站预渲染");
+      return { status: "ok" };
+    }
+
     ctx.log("info", "类型检查通过，执行隔离生产构建");
     const build = await runCommand(ctx.projectId, `${pnpmShellCommand()} build --webpack`, {
       cwd: candidate.relativeRoot,
@@ -409,9 +414,10 @@ async function verifyProject(ctx: StageContext, dataDir: string): Promise<StageR
         spec,
         acceptance: attempt.acceptance,
         expectedChecks: ctx.plan?.acceptance?.map(check => check.id),
+        developmentPreview: config.generationVerificationMode !== "full",
       });
       writeFile(ctx.projectId, ".atoms/VERIFICATION.json", JSON.stringify(report, null, 2));
-      ctx.log("info", report.businessVerified ? "计划内业务验收与技术检查均已通过，详见 .atoms/VERIFICATION.json" : "技术和页面检查已通过；旧计划未提供完整业务步骤，详见 .atoms/VERIFICATION.json");
+      ctx.log("info", report.businessVerified ? "计划内业务验收与技术检查均已通过，详见 .atoms/VERIFICATION.json" : report.previewMode === "development" ? "开发预览已启动并通过首页检查；未执行生产构建，详见 .atoms/VERIFICATION.json" : "技术和页面检查已通过；完整业务流程尚未验收，详见 .atoms/VERIFICATION.json");
       return { ok: true };
     }
 

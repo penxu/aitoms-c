@@ -6,14 +6,15 @@ import {restartService} from '@/lib/runner';
 import {runCommand} from './command';
 import {pnpmShellCommand} from './toolchain';
 import {withBuildSlot} from './build-queue';
+import {config} from '@/lib/config';
 
-/** 先构建当前源码的独立快照再切换；Next预览与验收使用同一生产产物。 */
+/** 默认以源码快照启动dev；full模式才先生产构建。切换失败保留原预览。 */
 export async function refreshProjectPreview(projectId:string,signal?:AbortSignal) {
   signal?.throwIfAborted();
   const candidate=await prepareCandidate(projectId,`preview-${Date.now()}`,signal);
   signal?.throwIfAborted();
   const pkg=path.join(candidate.absoluteRoot,'package.json');
-  if(fs.existsSync(pkg)&&JSON.parse(fs.readFileSync(pkg,'utf8')).dependencies?.next) {
+  if(config.generationVerificationMode === 'full' && fs.existsSync(pkg)&&JSON.parse(fs.readFileSync(pkg,'utf8')).dependencies?.next) {
     const data=fs.mkdtempSync(path.join(os.tmpdir(),'atoms-preview-build-'));
     try {
       await withBuildSlot(async()=>{
