@@ -1,0 +1,5 @@
+- [x] Reproduce blocking acceptance and silent planner waiting with regression tests.
+- [x] Implement preview-first planning and safe saved-plan resume.
+- [x] Implement real HTTP preview checks independent of browser/business acceptance.
+- [x] Verify strict opt-in mode, cancellation and report honesty.
+- [x] Run full tests, lint, typecheck, build and review.
