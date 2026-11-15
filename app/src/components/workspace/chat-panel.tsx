@@ -307,7 +307,8 @@ function ToolCallCard({ props, onFinished }: { props: ToolProps; onFinished?: ()
   const name = props.toolName ?? "tool";
   const args = props.args ?? {};
   const state = toolStatus(props.status);
-  const done = state === "complete" || state === "result";
+  const installation = props.result && typeof props.result === "object" && "installing" in props.result ? props.result as {installing:boolean;progress?:string;stdout?:string} : null;
+  const done = !installation?.installing && (state === "complete" || state === "result");
 
   const target =
     (args.path as string) ??
@@ -320,9 +321,9 @@ function ToolCallCard({ props, onFinished }: { props: ToolProps; onFinished?: ()
     if (done) onFinished?.();
   }, [done, onFinished]);
 
-  const detail = typeof props.result === "string" ? props.result : props.result ? JSON.stringify(props.result, null, 2) : typeof args.content === "string" ? args.content : typeof args.newText === "string" ? args.newText : "";
+  const detail = installation?.installing ? `${installation.progress??"正在安装依赖"}\n${installation.stdout??""}` : typeof props.result === "string" ? props.result : props.result ? JSON.stringify(props.result, null, 2) : typeof args.content === "string" ? args.content : typeof args.newText === "string" ? args.newText : "";
   return (
-    <details className="my-2 min-w-0 max-w-full rounded-xl border border-black/8 bg-[#fafaf9] px-3 py-2">
+    <details open={installation?.installing || undefined} className="my-2 min-w-0 max-w-full rounded-xl border border-black/8 bg-[#fafaf9] px-3 py-2">
       <summary className="flex min-w-0 cursor-pointer items-center gap-2 text-[12.5px]">
         <span
           className={`inline-block h-1.5 w-1.5 rounded-full ${

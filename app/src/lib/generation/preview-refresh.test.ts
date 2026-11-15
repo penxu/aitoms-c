@@ -22,3 +22,11 @@ test('聊天启动和刷新默认不执行Next生产构建',async()=>{
  const refresh=vm.runInNewContext(`${js}\nrefreshProjectPreview`,{Date,config:{generationVerificationMode:'preview'},fs:{existsSync:()=>true,readFileSync:()=>'{"dependencies":{"next":"16"}}',mkdtempSync:()=>'/tmp/test',rmSync(){}},path:{join:()=> 'package.json'},os:{tmpdir:()=>'/tmp'},prepareCandidate:async()=>({relativeRoot:'.atoms/candidates/dev',absoluteRoot:'/tmp/dev'}),withBuildSlot:async(fn:()=>unknown)=>fn(),pnpmShellCommand:()=> 'pnpm',runCommand:async()=>{commands++;throw Error('不允许生产构建');},restartService:async()=>{switched=true;return{port:4001};}});
  assert.equal((await refresh('p',new AbortController().signal)).port,4001);assert.equal(commands,0);assert.equal(switched,true);
 });
+
+test('预览准备透传候选安装进度，启动前仍显示当前步骤',async()=>{
+ const messages:string[]=[];
+ const refresh=vm.runInNewContext(`${js}\nrefreshProjectPreview`,{Date,config:{generationVerificationMode:'preview'},fs:{existsSync:()=>false},path:{join:()=> 'package.json'},prepareCandidate:async(_id:string,_run:string,_signal:unknown,notify?:(message:string)=>void)=>{notify?.('Progress: downloaded 3');return{relativeRoot:'.atoms/candidates/progress',absoluteRoot:'/tmp/progress'};},restartService:async()=>({port:4001})});
+ await refresh('p',new AbortController().signal,(message:string)=>messages.push(message));
+ assert.match(messages.join('\n'),/downloaded 3/);
+ assert.match(messages.join('\n'),/正在启动并检查预览/);
+});

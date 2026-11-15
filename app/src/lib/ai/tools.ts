@@ -1,4 +1,5 @@
 import { refreshProjectPreview } from "@/lib/workspace/preview";
+import {streamInstall} from '@/lib/generation/install-progress';
 import { ensureProjectDependencies } from "@/lib/generation/scaffold";
 import { installDependenciesCommand } from "@/lib/workspace/toolchain";
 import { tool } from "ai";
@@ -217,10 +218,11 @@ export function createHarnessTools(projectId: string, baseSignal?:AbortSignal) {
       inputSchema: z.object({
         packages: z.array(z.string()).optional().describe("要安装的包，留空则安装全部依赖"),
       }),
-      execute: async ({ packages }, { abortSignal }) => {
+      execute: async function* ({ packages }, { abortSignal }) {
         const cmd = installDependenciesCommand(packages);
-        const result = await ensureProjectDependencies(projectId, combined(abortSignal), undefined, ".", packages);
-        return { command: cmd, ...result };
+        for await (const result of streamInstall((report,signal)=>ensureProjectDependencies(projectId,signal,undefined,".",packages,report),combined(abortSignal))) {
+          yield {command:cmd,...result};
+        }
       },
     }),
 
@@ -228,13 +230,11 @@ export function createHarnessTools(projectId: string, baseSignal?:AbortSignal) {
       description:
         "在服务器上启动该项目的服务并分配端口，之后用户可通过 /p/{projectId}/ 访问。",
       inputSchema: z.object({}),
-      execute: async (_input, { abortSignal }) => {
-        const result = await refreshProjectPreview(projectId, combined(abortSignal));
-        return {
-          ...result,
-          previewUrl: `/p/${projectId}/`,
-          message: `服务已启动在端口 ${result.port}`,
-        };
+      execute: async function* (_input, { abortSignal }) {
+        yield* streamInstall(async(report,signal)=>{
+          const result=await refreshProjectPreview(projectId,signal,report);
+          return {...result,previewUrl:`/p/${projectId}/`,message:`服务已启动在端口 ${result.port}`};
+        },combined(abortSignal),"正在准备应用预览");
       },
     }),
 
@@ -247,9 +247,11 @@ export function createHarnessTools(projectId: string, baseSignal?:AbortSignal) {
     restart_service: tool({
       description: "重启该项目的运行服务（代码修改后可调用）。",
       inputSchema: z.object({}),
-      execute: async (_input, { abortSignal }) => {
-        const result = await refreshProjectPreview(projectId, combined(abortSignal));
-        return { ...result, previewUrl: `/p/${projectId}/` };
+      execute: async function* (_input, { abortSignal }) {
+        yield* streamInstall(async(report,signal)=>{
+          const result=await refreshProjectPreview(projectId,signal,report);
+          return {...result,previewUrl:`/p/${projectId}/`};
+        },combined(abortSignal),"正在更新应用预览");
       },
     }),
   };

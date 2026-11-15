@@ -41,13 +41,13 @@ export function assertCommandAllowed(command: string): void {
 
 function truncate(text: string): string {
   if (text.length <= config.maxToolOutputChars) return text;
-  return `${text.slice(0, config.maxToolOutputChars)}\n... [输出已截断]`;
+  return `[较早输出已截断]\n${text.slice(-config.maxToolOutputChars)}`;
 }
 
 export async function runCommand(
   projectId: string,
   command: string,
-  opts: { timeoutMs?: number; env?: Record<string, string>; signal?: AbortSignal; cwd?: string } = {},
+  opts: { timeoutMs?: number; env?: Record<string, string>; signal?: AbortSignal; cwd?: string; onOutput?: (chunk:string,channel:"stdout"|"stderr")=>void } = {},
 ): Promise<CommandResult> {
   assertCommandAllowed(command);
 
@@ -113,10 +113,14 @@ export async function runCommand(
     if(opts.signal?.aborted) onAbort();
 
     child.stdout.on("data", (chunk: Buffer) => {
-      if (stdout.length < config.maxToolOutputChars * 2) stdout += chunk.toString();
+      const text=chunk.toString();
+      stdout=(stdout+text).slice(-config.maxToolOutputChars*2);
+      try { opts.onOutput?.(text,"stdout"); } catch { /* 观察者不能中断工程进程。 */ }
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      if (stderr.length < config.maxToolOutputChars * 2) stderr += chunk.toString();
+      const text=chunk.toString();
+      stderr=(stderr+text).slice(-config.maxToolOutputChars*2);
+      try { opts.onOutput?.(text,"stderr"); } catch { /* 观察者不能中断工程进程。 */ }
     });
 
     const finish = (exitCode: number | null) => {

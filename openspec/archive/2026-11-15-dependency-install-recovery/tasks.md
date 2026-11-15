@@ -1,0 +1,4 @@
+- [x] Verified existing/candidate installs are reused, stale or incomplete installs are rejected.
+- [x] Registry and bounded download behavior are configurable/observable.
+- [x] Generation and chat install progress is shown without premature completion.
+- [x] Tests and platform checks pass; online task identified: candidate reinstall then Python unavailable; online remediation remains external.

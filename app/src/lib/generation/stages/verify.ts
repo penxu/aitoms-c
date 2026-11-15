@@ -22,6 +22,7 @@ import { addRunTokens } from "@/lib/db/generation";
 import { restartService } from "@/lib/runner";
 import { runCommand } from "@/lib/workspace/command";
 import { ensureWorkspaceRuntime } from "@/lib/workspace/execution";
+import {sanitizeInstallOutput} from '../install-progress';
 import { readFile, writeFile } from "@/lib/workspace/files";
 import { REPAIR_SYSTEM_PROMPT, repairUserPrompt } from "../prompts";
 import {
@@ -66,7 +67,10 @@ function errorLogOf(stdout: string, stderr: string): string {
 /** 安装依赖：优先命中模板 node_modules 缓存 */
 async function installDependencies(ctx: StageContext, dataDir: string): Promise<AttemptResult> {
   ctx.log("info", "校验依赖指纹并安装工程依赖");
-  const result = await ensureProjectDependencies(ctx.projectId, ctx.signal, { ATOMS_DATA_DIR: dataDir, DATABASE_PATH: path.join(dataDir, "app.db") });
+  let lastLog=0;
+  const result = await ensureProjectDependencies(ctx.projectId, ctx.signal, { ATOMS_DATA_DIR: dataDir, DATABASE_PATH: path.join(dataDir, "app.db") },".",[],message=>{
+    if(Date.now()-lastLog>=2000){ctx.log("info",sanitizeInstallOutput(message).trim().slice(-1000));lastLog=Date.now();}
+  });
   if (result.aborted || ctx.signal.aborted) return { status: "aborted" };
   if (result.exitCode !== 0) return { status: "failed", log: `[dependencies]\n${errorLogOf(result.stdout, result.stderr)}` };
   return { status: "ok" };
@@ -144,7 +148,7 @@ async function buildAndStart(ctx: StageContext, dataDir: string): Promise<Attemp
     const imports = checkImportClosure(projectRoot(ctx.projectId));
     if (imports.length) return { status: "failed", log: `[imports]\n${imports.join("\n")}` };
     ctx.log("info", "创建独立构建快照，当前预览继续运行");
-    candidate = await prepareCandidate(ctx.projectId, ctx.runId, ctx.signal);
+    candidate = await prepareCandidate(ctx.projectId, ctx.runId, ctx.signal, message=>ctx.log("info",sanitizeInstallOutput(message).trim().slice(-1000)));
     if (ctx.signal.aborted) return { status: "aborted" };
 
     // 先单独做类型检查：next build 的类型错误输出不完整，单独跑 tsc 能给修复阶段精确的 file:line

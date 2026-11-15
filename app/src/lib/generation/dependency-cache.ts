@@ -48,6 +48,26 @@ export function dependencyFingerprint(root: string, runtime?: {node:string;platf
   } catch { return null; }
 }
 
+/** 精确匹配已成功安装的清单与工具链；复制到候选后不再触发 pnpm 更换 store 重建。 */
+export function hasInstalledDependencies(root:string,runtime:NonNullable<Parameters<typeof dependencyFingerprint>[1]>):boolean {
+  try {
+    const modules=path.join(root,'node_modules');
+    if(fs.lstatSync(modules).isSymbolicLink()||!isReusableDependencyTree(modules))return false;
+    const marker=JSON.parse(fs.readFileSync(path.join(modules,'.atoms-runtime.json'),'utf8'));
+    const fingerprint=dependencyFingerprint(root,runtime);
+    if(!fingerprint||marker.runtime!==JSON.stringify(runtime)||marker.fingerprint!==fingerprint)return false;
+    const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+    for(const name of Object.keys({...pkg.dependencies,...pkg.devDependencies})){
+      if(!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(name))return false;
+      const entry=path.join(modules,name,'package.json');
+      if(!fs.lstatSync(entry).isFile())return false;
+      const real=fs.realpathSync(entry),realModules=fs.realpathSync(modules);
+      if(!real.startsWith(realModules+path.sep))return false;
+    }
+    return true;
+  }catch{return false;}
+}
+
 /** 完整副本先在同目录完成，rename 后才向读者发布。 */
 export function publishDependencyCache(source: string, target: string, fingerprint: string): void {
   fs.mkdirSync(path.dirname(target),{recursive:true});

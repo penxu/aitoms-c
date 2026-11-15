@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
+import * as nodeModule from 'node:module';
+const {stripTypeScriptTypes}=nodeModule as unknown as {stripTypeScriptTypes:(source:string)=>string};
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -10,6 +13,12 @@ test('安装参数拒绝 shell 注入、选项和远程安装源', () => {
   assert.equal(typeof toolchain.installDependenciesCommand, 'function');
   for (const input of ['next;touch /tmp/pwn', '--dir=/tmp', 'https://evil/x', '../sibling', 'foo$(id)', 'foo\nbar']) assert.throws(() => toolchain.installDependenciesCommand([input]));
   assert.match(toolchain.installDependenciesCommand(['@types/node@^20', 'zod@3.25.0']), /add/);
+});
+
+test('安装命令支持配置源、限制下载重试并输出可观察进度',()=>{
+ const command=toolchain.installDependenciesCommand([],false,'https://registry.npmmirror.com');
+ assert.match(command,/registry\.npmmirror\.com/);assert.match(command,/--reporter=append-only/);assert.match(command,/--fetch-retries=1/);assert.match(command,/--fetch-timeout=30000/);
+ for(const value of ['file:///etc','https://user:secret@example.com','https://example.com\n--ignore-scripts'])assert.throws(()=>toolchain.installDependenciesCommand([],false,value));
 });
 
 test('异步工具链初始化共享任务且等待期间事件循环持续响应',async(t)=>{
@@ -145,4 +154,15 @@ test('创建隔离HOME前拒绝runtime目录符号链接逃逸',async()=>{
     assert.throws(()=>workspaceEnvironment(root),/符号链接|项目目录/);
     assert.deepEqual(fs.readdirSync(sibling),[]);
   } finally {fs.rmSync(fixture,{recursive:true,force:true});}
+});
+
+test('原生编译工具可只读访问系统头文件与64位库目录',()=>{
+ const js=stripTypeScriptTypes(fs.readFileSync(new URL('../workspace/execution.ts',import.meta.url),'utf8')).replace(/^import[^;]*;\n/gm,'').replace(/^export \{[^;]*;\n/gm,'').replace(/^export /gm,'');
+ const create=vm.runInNewContext(`${js}\ncreateNativeExecution`,{path,fs:{existsSync:()=>true,realpathSync:(value:string)=>value},process:{platform:'linux',execPath:'/usr/bin/node'},pnpmCliPath:()=>'/platform/node_modules/pnpm/bin/pnpm.cjs',ensureRuntimeDirectory:(_root:string,relative:string)=>'/project/'+relative,spawnSync:()=>({status:0})});
+ const result=create('/project','python3 --version');
+ assert.equal(result.command,'/usr/bin/bwrap');
+ for(const directory of ['/usr/include','/usr/local/include','/usr/lib64']){
+   const index=result.args.indexOf(directory);assert.ok(index>0);
+   assert.equal(result.args[index-1],'--ro-bind');assert.equal(result.args[index+1],directory);
+ }
 });

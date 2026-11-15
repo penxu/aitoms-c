@@ -1,4 +1,4 @@
-import { dependencyFingerprint, prepareDependencyRuntime, isReusableDependencyTree, publishDependencyCache, restoreDependencyCache } from "./dependency-cache";
+import { dependencyFingerprint, prepareDependencyRuntime, isReusableDependencyTree, publishDependencyCache, restoreDependencyCache, hasInstalledDependencies } from "./dependency-cache";
 import { runCommand, type CommandResult } from "@/lib/workspace/command";
 import { installDependenciesCommand } from "@/lib/workspace/toolchain";
 import { workspaceExecutionRuntime, ensureWorkspaceRuntime } from "@/lib/workspace/execution";
@@ -85,17 +85,25 @@ export async function saveNodeModulesCache(projectId: string, cwd = "."): Promis
   try {publishDependencyCache(source, cacheDir(fingerprint), fingerprint);} catch { /* 缓存失败不影响交付 */ }
 }
 
-/** 即使命中缓存也由固定 pnpm 校验清单与锁文件，并实际安装缺失依赖。 */
-export async function ensureProjectDependencies(projectId: string, signal?: AbortSignal, env?: Record<string,string>, cwd = ".", packages: string[] = []): Promise<CommandResult> {
+/** 精确复用成功安装；其他缓存仍由固定 pnpm 校验和补齐依赖。 */
+export async function ensureProjectDependencies(projectId: string, signal?: AbortSignal, env?: Record<string,string>, cwd = ".", packages: string[] = [], onProgress?: (message:string)=>void): Promise<CommandResult> {
   const command=installDependenciesCommand(packages);
   if(signal?.aborted)return {stdout:"",stderr:"",exitCode:null,timedOut:false,aborted:true};
   const root=resolveInsideProject(projectId,cwd);
   await ensureWorkspaceRuntime(root,signal);
   const modules=path.join(root,"node_modules");
-  const runtime=JSON.stringify(workspaceExecutionRuntime(root));
+  const executionRuntime=workspaceExecutionRuntime(root);
+  const runtime=JSON.stringify(executionRuntime);
+  if(!packages.length && hasInstalledDependencies(root,executionRuntime)) {
+    const stdout="依赖清单、锁文件与运行环境匹配，复用已安装依赖，无需重复下载";
+    onProgress?.(stdout);
+    return {stdout,stderr:"",exitCode:0,timedOut:false,aborted:false};
+  }
+  onProgress?.("正在检查运行环境与依赖缓存");
   prepareDependencyRuntime(root,runtime);
   await restoreNodeModulesCache(projectId,cwd);
-  const result = await runCommand(projectId, command, {timeoutMs:300_000,signal,env,cwd});
+  onProgress?.("正在安装依赖：下载、链接或编译原生模块，日志将实时更新");
+  const result = await runCommand(projectId, command, {timeoutMs:300_000,signal,env,cwd,onOutput:chunk=>onProgress?.(chunk)});
   if (result.exitCode === 0 && !result.aborted && !result.timedOut) {
     const npmLock=resolveInsideProject(projectId,path.join(cwd,"package-lock.json"),{allowMissing:true});
     if (fs.existsSync(npmLock)) fs.unlinkSync(npmLock);
@@ -104,8 +112,10 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
       if(fs.existsSync(manifest))fs.unlinkSync(manifest);
       fs.writeFileSync(manifest,JSON.stringify({runtime,fingerprint:dependencyFingerprint(root)}));
     }
+    onProgress?.("依赖安装完成，正在保存可复用缓存");
     await saveNodeModulesCache(projectId,cwd);
   }
+  if(result.timedOut)result.stderr+= "\n依赖安装超过5分钟已终止；请查看最后日志，区分下载超时与原生模块编译失败。";
   return result;
 }
 

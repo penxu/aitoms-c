@@ -13,6 +13,7 @@ export const config = {
   acceptanceTimeoutMs: Number(process.env.ACCEPTANCE_TIMEOUT_MS ?? 300_000),
   /** 默认先交付可运行预览；完整业务浏览器验收由 full 显式开启。 */
   generationVerificationMode: process.env.GENERATION_VERIFICATION_MODE === "full" ? "full" : "preview",
+  packageRegistry: process.env.PACKAGE_REGISTRY?.trim() || "https://registry.npmjs.org",
   portRangeMin: Number(process.env.PORT_RANGE_MIN ?? 4000),
   portRangeMax: Number(process.env.PORT_RANGE_MAX ?? 4999),
   /** 单轮对话等待上限，避免上游不返回时永久占用。 */

@@ -23,7 +23,7 @@ export function workspaceEnvironment(root: string, extraEnv: Record<string, stri
 function createNativeExecution(root: string, command: string, extraEnv: Record<string, string | undefined> = {}): WorkspaceExecution {
   const realRoot = fs.realpathSync(root);
   const env = workspaceEnvironment(realRoot, extraEnv);
-  const readRoots = ['/usr/bin', '/usr/sbin', '/usr/lib', '/usr/libexec', '/usr/share', '/usr/local/bin', '/usr/local/lib', '/bin', '/sbin', '/lib', '/lib64', '/System', '/Library', '/private/etc', '/etc', '/dev',
+  const readRoots = ['/usr/bin', '/usr/sbin', '/usr/lib', '/usr/lib64', '/usr/include', '/usr/local/include', '/usr/libexec', '/usr/share', '/usr/local/bin', '/usr/local/lib', '/bin', '/sbin', '/lib', '/lib64', '/System', '/Library', '/private/etc', '/etc', '/dev',
     path.dirname(fs.realpathSync(process.execPath)), path.resolve(pnpmCliPath(), '../../..')]
     .filter(value => fs.existsSync(value));
   // 生产数据目录由平台显式传入；普通命令没有额外可写挂载。

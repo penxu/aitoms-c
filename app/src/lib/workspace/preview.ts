@@ -9,9 +9,9 @@ import {withBuildSlot} from './build-queue';
 import {config} from '@/lib/config';
 
 /** 默认以源码快照启动dev；full模式才先生产构建。切换失败保留原预览。 */
-export async function refreshProjectPreview(projectId:string,signal?:AbortSignal) {
+export async function refreshProjectPreview(projectId:string,signal?:AbortSignal,onProgress?:(message:string)=>void) {
   signal?.throwIfAborted();
-  const candidate=await prepareCandidate(projectId,`preview-${Date.now()}`,signal);
+  const candidate=await prepareCandidate(projectId,`preview-${Date.now()}`,signal,onProgress);
   signal?.throwIfAborted();
   const pkg=path.join(candidate.absoluteRoot,'package.json');
   if(config.generationVerificationMode === 'full' && fs.existsSync(pkg)&&JSON.parse(fs.readFileSync(pkg,'utf8')).dependencies?.next) {
@@ -27,6 +27,7 @@ export async function refreshProjectPreview(projectId:string,signal?:AbortSignal
     }finally {fs.rmSync(data,{recursive:true,force:true});}
   }
   signal?.throwIfAborted();
+  onProgress?.("候选依赖已就绪，正在启动并检查预览");
   return restartService(projectId,{
     sourceDir:candidate.relativeRoot,
     validate:async(_result,serviceSignal)=>{signal?.throwIfAborted();serviceSignal.throwIfAborted();},
