@@ -17,6 +17,8 @@ export const projects = sqliteTable("projects", {
   assignedPort: integer("assigned_port"),
   /** created | generating | running | stopped | error */
   status: text("status").notNull().default("created"),
+  /** 是否被收藏（项目中心「已收藏」筛选） */
+  favorited: integer("favorited", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowUp, Sparkles, LoaderCircle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { notifyProjectsChanged } from "@/components/layout/projects-changed";
 
 interface ProjectRow {
   id: string;
@@ -82,9 +84,13 @@ export function DashboardPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<PanelTab>("discover");
   const [promoOpen, setPromoOpen] = useState(true);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const sorted = useMemo(
@@ -98,12 +104,12 @@ export function DashboardPage() {
   const loadProjects = useCallback(async () => {
     try {
       const res = await fetch("/api/projects");
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("项目列表加载失败，请重试。");
       const data = (await res.json()) as { projects: ProjectRow[] };
       setProjects(data.projects ?? []);
-    } catch {
-      /* 忽略网络抖动 */
-    }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "项目列表加载失败");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -120,9 +126,20 @@ export function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    // 资源页/模板会带着 ?q= 跳到工作台，这里把需求预填进输入框
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (!q) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrompt(q);
+    inputRef.current?.focus();
+  }, []);
+
   async function handleCreate(text: string) {
     const description = text.trim();
-    if (!description || creating) return;
+    if (creating) return;
+    if (!description) { setError("先描述你想构建的应用。"); inputRef.current?.focus(); return; }
+    setError("");
     setCreating(true);
     try {
       const res = await fetch("/api/projects", {
@@ -130,12 +147,33 @@ export function DashboardPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ description }),
       });
-      const data = (await res.json()) as { project?: { id: string } };
+      const data = (await res.json()) as { project?: { id: string }; error?: string };
+      if (!res.ok || !data.project?.id) throw new Error(data.error ?? "创建项目失败，请重试。");
       if (data.project?.id) {
         router.push(`/app/${data.project.id}?q=${encodeURIComponent(description)}`);
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "网络连接失败，请重试。");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(project: ProjectRow) {
+    if (deleting) return;
+    setError("");
+    setDeleting(project.id);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "删除失败，请重试。");
+      setProjects((list) => list.filter((item) => item.id !== project.id));
+      setPendingDelete(null);
+      notifyProjectsChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "删除失败，请重试。");
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -148,12 +186,12 @@ export function DashboardPage() {
 
   return (
     <div
-      className="flex h-screen flex-col bg-[#f6f6f6] text-[#0c0c0c]"
+      className="dashboard-shell flex h-dvh flex-col bg-[#f8f8f5] text-[#0c0c0c]"
       style={{ fontFamily: "var(--font-ibm-plex-sans), system-ui, sans-serif" }}
     >
       {promoOpen ? (
         <div className="flex h-10 flex-none">
-          <div className="w-[270px] flex-none bg-[#f1f1ef]" />
+          <div className="hidden w-[248px] flex-none bg-[#f2f2ed] lg:block" />
           <div className="relative flex min-w-0 flex-1 items-center justify-center gap-3 bg-[linear-gradient(90deg,#eef1ff_0%,#f7f0ff_45%,#fff0f6_100%)] px-10">
             <span className="truncate text-[13.5px] text-black/70">
               让 Atoms 把你的想法变成可运行的应用。
@@ -178,34 +216,13 @@ export function DashboardPage() {
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <AppSidebar
-          active="home"
-          projectsActive={tab === "projects"}
-          onProjectsClick={() => setTab("projects")}
-        />
+        <AppSidebar active="home" projectsActive={tab === "projects"} />
 
         <main className="relative min-w-0 flex-1 overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(60%_70%_at_50%_0%,rgba(66,103,255,0.10),rgba(184,138,222,0.08)_45%,transparent_75%)]" />
 
-        <div className="relative flex items-center justify-end px-6 pt-4">
-          <span
-            title="积分系统即将上线"
-            className="flex h-8 items-center rounded-full border border-black/10 bg-[#f6f6f6] px-3 text-[12.5px] text-black/45"
-          >
-            积分 —
-          </span>
-        </div>
-
-        <div className="relative mx-auto w-full max-w-[649px] px-5 pb-16">
-          <div className="mt-8 flex justify-center">
-            <button
-              type="button"
-              className="flex h-8 items-center gap-1 rounded-full bg-black/4 px-3.5 text-[13px] text-black/60"
-            >
-              免费计划 <span className="text-[#425ce1]">· 升级</span>
-            </button>
-          </div>
-
+        <div className="relative mx-auto w-full max-w-[900px] px-5 pb-16 pt-12 sm:px-10">
+          <div className="dashboard-intro"><span className="eyebrow">YOUR NEXT CHAPTER</span><h1>好想法，值得被做出来。</h1><p>用一句话描述应用。让 AI 把需求、代码和交付串在一起。</p></div>
           <div className="mt-6 flex justify-center">
             <div className="flex items-center">
               {AGENTS.map((agent, index) => (
@@ -230,6 +247,8 @@ export function DashboardPage() {
             }}
           >
             <textarea
+              aria-label="描述你想构建的应用"
+              aria-describedby={error ? "dashboard-error" : undefined}
               ref={inputRef}
               rows={2}
               value={prompt}
@@ -244,37 +263,18 @@ export function DashboardPage() {
               className="max-h-40 min-h-[56px] w-full resize-none bg-transparent px-2 py-2 text-[16px] leading-relaxed outline-none placeholder:text-black/35"
             />
             <div className="mt-1 flex items-center gap-2">
-              <button
-                type="button"
-                title="上传附件（即将上线）"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-[16px] text-black/50 hover:border-black/25"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                title="选择构建目标（即将上线）"
-                className="flex h-8 items-center gap-1 rounded-full border border-black/10 px-3 text-[12.5px] text-black/55 hover:border-black/25"
-              >
-                构建 <IconChevron className="text-black/35" />
-              </button>
-              <button
-                type="button"
-                title="语音输入（即将上线）"
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-full border border-black/6 text-black/40 hover:text-black/60"
-              >
-                <IconWave />
-              </button>
+              <span className="flex items-center gap-1.5 px-2 text-xs text-black/40"><Sparkles size={14} />需求 → 构建 → 交付</span>
               <button
                 type="submit"
                 disabled={!prompt.trim() || creating}
                 aria-label="开始构建"
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0c0c0c] text-[14px] text-white transition disabled:bg-black/10 disabled:text-black/30"
               >
-                {creating ? "…" : "↑"}
+                {creating ? <LoaderCircle size={17} className="animate-spin" /> : <ArrowUp size={17} />}
               </button>
             </div>
           </form>
+          {error && <div id="dashboard-error" role="alert" className="feedback-error mt-3">{error}<button onClick={() => { setError(""); void loadProjects(); }}>刷新列表</button></div>}
 
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {QUICK_PROMPTS.map((item) => (
@@ -305,13 +305,12 @@ export function DashboardPage() {
                   {item === "discover" ? "发现" : item === "projects" ? "项目" : "模板"}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => setTab("projects")}
+              <Link
+                href="/projects"
                 className="ml-auto text-[12.5px] text-black/40 hover:text-black/65"
               >
                 查看全部 ›
-              </button>
+              </Link>
             </div>
 
             <div className="mt-5">
@@ -325,7 +324,7 @@ export function DashboardPage() {
                         className="flex w-full items-center gap-3 rounded-2xl border border-black/8 px-4 py-3.5 text-left transition hover:border-black/20"
                       >
                         <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-[#e8ecff] to-[#f3e9ff] text-[15px]">
-                          ✦
+                          <Sparkles size={18} />
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[13.5px] font-medium">{template.title}</span>
@@ -338,7 +337,7 @@ export function DashboardPage() {
                     </li>
                   ))}
                 </ul>
-              ) : visibleProjects.length === 0 ? (
+              ) : loading ? <div className="flex items-center gap-2 py-10 text-sm text-black/50" role="status"><LoaderCircle size={17} className="animate-spin" />正在加载你的项目…</div> : visibleProjects.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-black/10 px-4 py-10 text-center">
                   <p className="text-[13.5px] font-medium">还没有项目</p>
                   <p className="mt-1 text-[12.5px] text-black/45">
@@ -349,32 +348,82 @@ export function DashboardPage() {
                 <ul className="flex flex-col gap-3">
                   {visibleProjects.map((project) => {
                     const status = STATUS_MAP[project.status] ?? STATUS_MAP.created;
+                    const confirming = pendingDelete === project.id;
                     return (
-                      <li key={project.id}>
-                        <Link
-                          href={`/app/${project.id}`}
-                          className="flex items-center gap-3 rounded-2xl border border-black/8 px-4 py-3.5 transition hover:border-black/20"
+                      <li key={project.id} className="group">
+                        <div
+                          className={`flex items-center gap-2 rounded-2xl border py-2 pl-4 pr-2 transition ${
+                            confirming
+                              ? "border-[#e5484d]/35 bg-[#fff6f6]"
+                              : "border-black/8 group-hover:border-black/20"
+                          }`}
                         >
-                          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-[#e8ecff] to-[#f3e9ff] text-[14px] font-semibold text-[#4267ff]">
-                            {project.name.slice(0, 1)}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13.5px] font-medium">
-                              {project.name}
-                            </span>
-                            <span className="block truncate text-[12.5px] text-black/45">
-                              {project.description || "暂无描述"}
-                            </span>
-                          </span>
-                          <span
-                            className={`flex-none rounded-full px-2 py-0.5 text-[11.5px] font-medium ${status.cls}`}
+                          <Link
+                            href={`/app/${project.id}`}
+                            className="flex min-w-0 flex-1 items-center gap-3 py-1.5"
                           >
-                            {status.label}
-                          </span>
-                          <span className="w-[64px] flex-none text-right text-[12px] text-black/35">
-                            {timeAgo(project.createdAt)}
-                          </span>
-                        </Link>
+                            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-[#e8ecff] to-[#f3e9ff] text-[14px] font-semibold text-[#4267ff]">
+                              {project.name.slice(0, 1)}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13.5px] font-medium">
+                                {project.name}
+                              </span>
+                              <span className="block truncate text-[12.5px] text-black/45">
+                                {project.description || "暂无描述"}
+                              </span>
+                            </span>
+                          </Link>
+
+                          {confirming ? (
+                            <span className="flex flex-none items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setPendingDelete(null)}
+                                className="h-7 rounded-full px-2 text-[12.5px] text-black/50 transition hover:text-black"
+                              >
+                                取消
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDelete(project)}
+                                disabled={deleting === project.id}
+                                className="flex h-7 items-center gap-1 rounded-full bg-[#e5484d] px-2.5 text-[12.5px] font-medium text-white transition hover:bg-[#c53b40] disabled:opacity-60"
+                              >
+                                {deleting === project.id ? (
+                                  <>
+                                    <LoaderCircle size={13} className="animate-spin" />
+                                    删除中
+                                  </>
+                                ) : (
+                                  "确认删除"
+                                )}
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="flex flex-none items-center gap-2">
+                              <span
+                                className={`hidden rounded-full px-2 py-0.5 text-[11.5px] font-medium sm:inline ${status.cls}`}
+                              >
+                                {status.label}
+                              </span>
+                              <span className="hidden w-[64px] text-right text-[12px] text-black/35 sm:inline">
+                                {timeAgo(project.createdAt)}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={`删除项目 ${project.name}`}
+                                onClick={() => {
+                                  setPendingDelete(project.id);
+                                  setError("");
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-full text-black/25 transition hover:bg-black/5 hover:text-[#e5484d] focus-visible:ring-2 focus-visible:ring-[#e5484d]/40 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </span>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
@@ -386,31 +435,5 @@ export function DashboardPage() {
         </main>
       </div>
     </div>
-  );
-}
-
-function IconChevron({ className }: { className?: string }) {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
-    </svg>
-  );
-}
-
-function IconWave() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-      <path d="M2.5 8h.9M5 5.5v5M7.5 3.5v9M10 5.5v5M12.5 6.8v2.4" />
-    </svg>
   );
 }

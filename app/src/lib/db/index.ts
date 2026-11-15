@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import * as schema from "./schema";
+import { ReleaseStore } from "../releases/store";
 
 /**
  * 平台数据持久化：SQLite（WAL 模式）。
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS projects (
   workspace_path TEXT NOT NULL,
   assigned_port INTEGER,
   status TEXT NOT NULL DEFAULT 'created',
+  favorited INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
 );
@@ -83,6 +85,14 @@ CREATE TABLE IF NOT EXISTS generation_events (
 CREATE INDEX IF NOT EXISTS idx_events_run ON generation_events(run_id, created_at);
 `;
 
+/** 已有库的增量列：CREATE TABLE IF NOT EXISTS 不会补列，这里按需 ALTER。 */
+function migrate(sqlite: Database.Database) {
+  const columns = sqlite.pragma("table_info(projects)") as { name: string }[];
+  if (!columns.some((column) => column.name === "favorited")) {
+    sqlite.exec("ALTER TABLE projects ADD COLUMN favorited INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
 declare global {
   var __atomsSqlite: {
     sqlite: Database.Database;
@@ -97,6 +107,8 @@ function init() {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(DDL);
+  migrate(sqlite);
+  new ReleaseStore(sqlite);
   const db = drizzle(sqlite, { schema });
   return { sqlite, db };
 }

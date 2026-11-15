@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import next from "next";
 import nextEnv from "@next/env";
+import {markInterruptedGenerationRows} from "./recover-generations.mjs";
 
 /**
  * 自定义服务器：
@@ -47,12 +48,8 @@ async function markInterruptedGenerations() {
   try {
     const { default: Database } = await import("better-sqlite3");
     db = new Database(dbPath, { readonly: false });
-    const info = db
-      .prepare("UPDATE generation_runs SET status='interrupted', finished_at=? WHERE status='running'")
-      .run(Date.now());
-    if (info.changes > 0) {
-      console.log(`> 已把 ${info.changes} 个残留的生成任务标记为 interrupted`);
-    }
+    const changed = markInterruptedGenerationRows(db);
+    if (changed > 0) console.log(`> 已恢复 ${changed} 个失去工作进程的生成任务`);
   } catch (error) {
     console.warn("> 启动清理生成任务失败：", error.message);
   } finally {

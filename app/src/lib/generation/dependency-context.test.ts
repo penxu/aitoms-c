@@ -1,0 +1,2 @@
+import test from'node:test';import assert from'node:assert/strict';import{dependencyContext}from'./dependency-context.ts';
+test('接口在大文件尾部仍完整提供，不因4000字符裁剪丢失',()=>{const code='/*'+'x'.repeat(65000)+'*/\nexport interface BookingResult { id:number; error?:string }\nexport function save(input: BookingResult): number { return input.id; }';const context=dependencyContext(code);assert.match(context,/interface BookingResult/);assert.match(context,/save\(input: BookingResult\): number/)});

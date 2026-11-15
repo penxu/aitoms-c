@@ -7,7 +7,12 @@ import path from "node:path";
  * 建表语句统一放在下方 DDL 数组中，使用幂等 DDL，应用启动或首次请求时自动执行。
  */
 
-const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "app.db");
+// Development retains the historical data/app.db location. Production and
+// verification inject distinct ATOMS_DATA_DIR values; DATABASE_PATH stays compatible.
+const DB_PATH = process.env.DATABASE_PATH ?? path.join(
+  process.env.ATOMS_DATA_DIR ?? path.join(process.cwd(), "data"),
+  "app.db",
+);
 
 const DDL: string[] = [
   // BUILD 阶段新增表时，把对应 CREATE TABLE IF NOT EXISTS 追加到这里

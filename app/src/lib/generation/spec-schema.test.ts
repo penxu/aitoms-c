@@ -32,3 +32,21 @@ test("缺少数据模型段落时失败", () => {
 test("过短内容失败", () => {
   assert.equal(validateSpec("## 页面\n## 数据模型").ok, false);
 });
+
+const DELIVERY = `${GOOD}
+## 设计规则
+- 全站蓝色主按钮、同一字体、8px 间距和导航。
+## 核心流程
+- 提交预约持久化后刷新后台查询。
+## 验收清单
+- 有效预约在后台可查；空手机号不能提交。
+## 外部依赖
+- 无，本期不接支付。
+`;
+test("交付模式要求四个新段落，旧规格仍兼容", () => {
+  assert.equal(validateSpec(GOOD).ok, true);
+  assert.equal(validateSpec(GOOD, { delivery: true }).ok, false);
+  assert.equal(validateSpec(DELIVERY, { delivery: true }).ok, true);
+  for (const heading of ["设计规则", "核心流程", "验收清单", "外部依赖"])
+    assert.equal(validateSpec(DELIVERY.replace(`## ${heading}`, "## 缺失"), { delivery: true }).ok, false);
+});

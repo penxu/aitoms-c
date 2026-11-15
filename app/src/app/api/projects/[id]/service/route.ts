@@ -1,5 +1,8 @@
+import { refreshProjectPreview } from "@/lib/workspace/preview";
+import { acquireProjectMutation, ProjectBusyError } from "@/lib/workspace/mutations";
+import { infrastructureFailure } from "@/lib/generation/infrastructure-errors";
 import { NextResponse } from "next/server";
-import { getRuntimePort, restartService, startService, stopService } from "@/lib/runner";
+import { getRuntimePort, stopService } from "@/lib/runner";
 import { getProject } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
@@ -26,18 +29,22 @@ export async function POST(
 ) {
   const { id } = await params;
   const { action } = (await req.json()) as { action: "start" | "stop" | "restart" };
+  if (!["start", "stop", "restart"].includes(action)) return NextResponse.json({ error: "无效操作" }, { status: 400 });
+  let release: (() => void) | undefined;
   try {
+    release = acquireProjectMutation(id, "service");
     if (action === "stop") {
       stopService(id);
       return NextResponse.json({ status: "stopped", port: null, previewUrl: null });
     }
-    const result = action === "restart" ? await restartService(id) : await startService(id);
+    const result = await refreshProjectPreview(id, req.signal);
     return NextResponse.json({
       status: "running",
       port: result.port,
       previewUrl: `/p/${id}/`,
     });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: infrastructureFailure(message) ?? message }, { status: err instanceof ProjectBusyError ? 409 : 500 });
+  } finally { release?.(); }
 }

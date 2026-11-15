@@ -20,6 +20,8 @@ type Listener = (event: GenerationEventPayload) => void;
 function describe(event: GenerationEventPayload, stage: GenerationStage): string {
   const role = STAGE_ROLES[stage];
   switch (event.type) {
+    case "assessment": return event.summary;
+    case "discussion": return "等待你确认应用方案";
     case "stage":
       if (event.status === "running") return `${role.title} 开始 ${stage} 阶段`;
       if (event.status === "done") {
@@ -31,6 +33,12 @@ function describe(event: GenerationEventPayload, stage: GenerationStage): string
       if (event.status === "writing") return `写入 ${event.path}`;
       if (event.status === "done") return `已写入 ${event.path}`;
       return `写入失败 ${event.path}：${event.error ?? "未知错误"}`;
+    case "plan":
+      return `执行计划已生成：${event.items.length} 个文件 / ${event.pages.length} 个页面`;
+    case "code":
+      return event.status === "complete"
+        ? `${event.path} 代码生成完成`
+        : `正在生成 ${event.path}`;
     case "log":
       return event.message;
     case "run":
@@ -49,20 +57,27 @@ function levelOf(event: GenerationEventPayload): "info" | "warn" | "error" | "fi
 export class GenerationEventBus {
   private listeners = new Set<Listener>();
   private stage: GenerationStage = "scaffold";
+  private readonly runId: string;
 
-  constructor(private readonly runId: string) {}
+  constructor(runId: string) {
+    this.runId = runId;
+  }
 
   emit(event: GenerationEventPayload): void {
     if (event.type === "stage") this.stage = event.stage;
 
     try {
-      appendGenerationEvent({
-        runId: this.runId,
-        stage: this.stage,
-        level: levelOf(event),
-        message: describe(event, this.stage),
-        payload: event,
-      });
+      // 流式代码快照只保留完成态：实时订阅照常收到每一帧，
+      // 但数据库与刷新回放不会因为逐帧快照而膨胀。
+      if (event.type !== "code" || event.status === "complete") {
+        appendGenerationEvent({
+          runId: this.runId,
+          stage: this.stage,
+          level: levelOf(event),
+          message: describe(event, this.stage),
+          payload: event,
+        });
+      }
     } catch (error) {
       // 事件落库失败不应中断生成
       console.error("[generation] 事件写入失败", error);

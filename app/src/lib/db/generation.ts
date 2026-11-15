@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./index";
 import { generationEvents, generationRuns } from "./schema";
 import type { GenerationEvent, GenerationRun } from "./schema";
@@ -120,7 +120,7 @@ export function getActiveGenerationRun(projectId: string): GenerationRunRow | un
   const row = db
     .select()
     .from(generationRuns)
-    .where(and(eq(generationRuns.projectId, projectId), eq(generationRuns.status, "running")))
+    .where(and(eq(generationRuns.projectId, projectId), inArray(generationRuns.status, ["running", "waiting"])))
     .get();
   return row ? toRunRow(row) : undefined;
 }

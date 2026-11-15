@@ -1,3 +1,5 @@
+import { discussionStore } from "@/lib/generation/discussion";
+import { getProgress } from "@/lib/generation/progress";
 import { NextResponse } from "next/server";
 import { getProject } from "@/lib/db/queries";
 import {
@@ -22,6 +24,9 @@ export async function GET(
   const run = getActiveGenerationRun(id) ?? getLatestGenerationRun(id) ?? null;
   return NextResponse.json({
     run,
+    discussions: run ? discussionStore().history(run.id) : [],
+    discussion: run?.status === "waiting" ? discussionStore().pending(run.id) : null,
+    progress: run ? getProgress(run.id) : null,
     events: run ? listGenerationEvents(run.id) : [],
   });
 }

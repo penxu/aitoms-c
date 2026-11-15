@@ -21,12 +21,14 @@ function truncate(text: string): string {
   return `${text.slice(0, config.maxToolOutputChars)}\n\n... [内容已截断，共 ${text.length} 字符]`;
 }
 
-export function readFile(projectId: string, filePath: string): string {
+export function readFile(projectId: string, filePath: string, options: { complete?: boolean } = {}): string {
   const abs = resolveInsideProject(projectId, filePath);
   if (!fs.existsSync(abs)) throw new Error(`文件不存在：${filePath}`);
   const stat = fs.statSync(abs);
   if (stat.isDirectory()) throw new Error(`这是一个目录，无法读取：${filePath}`);
-  return truncate(fs.readFileSync(abs, "utf8"));
+  if(options.complete && stat.size > 500_000) throw new Error(`源码超过500KB上限：${filePath}`);
+  const content=fs.readFileSync(abs,"utf8");
+  return options.complete ? content : truncate(content);
 }
 
 export function writeFile(projectId: string, filePath: string, content: string): void {
@@ -87,6 +89,7 @@ function walk(root: string, dir: string, depth: number, maxDepth: number): FileN
     if (IGNORED_DIRS.has(entry.name)) continue;
     const abs = path.join(dir, entry.name);
     const rel = path.relative(root, abs).split(path.sep).join("/");
+    if (/^\.atoms\/(?:candidates|runtime|acceptance|dependency-backups|recovery|checkpoints)(?:\/|$)/.test(rel)) continue;
     if (entry.isDirectory()) {
       nodes.push({
         name: entry.name,
@@ -127,6 +130,7 @@ export function searchFiles(
       if (IGNORED_DIRS.has(entry.name)) continue;
       const abs = path.join(dir, entry.name);
       const rel = toRelative(projectId, abs);
+      if (/^\.atoms\/(?:candidates|runtime|acceptance|dependency-backups|recovery|checkpoints)(?:\/|$)/.test(rel)) continue;
       if (entry.isDirectory()) {
         visit(abs);
         continue;

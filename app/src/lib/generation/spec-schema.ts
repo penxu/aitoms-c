@@ -24,7 +24,7 @@ function sectionBody(markdown: string, heading: string): string | null {
   return body.join("\n").trim();
 }
 
-export function validateSpec(markdown: string): SpecValidation {
+export function validateSpec(markdown: string, options: { delivery?: boolean } = {}): SpecValidation {
   const errors: string[] = [];
   const text = markdown.trim();
 
@@ -46,5 +46,10 @@ export function validateSpec(markdown: string): SpecValidation {
     errors.push("「## 数据模型」段落为空：需要列出表名与列名");
   }
 
+  if (options.delivery) {
+    for (const heading of ["设计规则", "核心流程", "验收清单", "外部依赖"]) {
+      if (!sectionBody(text, `## ${heading}`)) errors.push(`缺少或为空「## ${heading}」段落`);
+    }
+  }
   return { ok: errors.length === 0, errors };
 }

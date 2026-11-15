@@ -1,26 +1,11 @@
 /**
- * PLAN 校验与最小计划（纯函数，无运行时依赖，可单测）。
+ * PLAN 完整性与覆盖校验（纯函数，无运行时依赖，可单测）。
  * 模型给出的计划必须经过这里校验后才能落盘与执行。
  */
-import type { GenerationPlan } from "./types";
 
 export const MAX_PLAN_ITEMS = 40;
 
 export const PLAN_JSON_PATH = ".atoms/PLAN.json";
-
-/** 校验失败时的兜底：只重写首页，保证后续阶段仍能跑通 */
-export const MINIMAL_PLAN: GenerationPlan = {
-  pages: ["/"],
-  items: [
-    {
-      path: "app/page.tsx",
-      action: "modify",
-      purpose: "按需求实现首页",
-      dependsOn: [],
-    },
-  ],
-  dataModel: [],
-};
 
 export interface PlanValidation {
   ok: boolean;
@@ -115,6 +100,14 @@ export function validatePlan(plan: unknown, templateFiles: string[]): PlanValida
     push("items 必须包含 app/page.tsx（首页）");
   }
 
+  if (new Set(itemPaths.map(p => p.toLowerCase())).size !== itemPaths.length) push("计划包含重复或大小写冲突的文件路径");
+  if (Array.isArray(plan.pages)) for (const page of plan.pages) {
+    if (typeof page !== "string") continue;
+    const route = page.replace(/:[A-Za-z_][\w]*/g, value => `[${value.slice(1)}]`).replace(/^\/+|\/+$/g, "");
+    const file = route ? `app/${route}/page.tsx` : "app/page.tsx";
+    if (!itemPaths.includes(file) && !templateFiles.includes(file)) push(`页面 ${page} 缺少实现文件 ${file}`);
+  }
+
   // dataModel
   const dataModel = plan.dataModel;
   if (!Array.isArray(dataModel)) {
@@ -131,4 +124,10 @@ export function validatePlan(plan: unknown, templateFiles: string[]): PlanValida
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+/** SPEC页面是覆盖门槛，不能通过缩小plan.pages绕开。 */
+export function requiredSpecRoutes(spec:string):string[] {
+ const section=/^## 页面\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m.exec(spec)?.[1]??'';
+ return [...new Set([...section.matchAll(/`(\/[\w/\[\]:.-]*)`/g)].map(match=>match[1]))];
 }

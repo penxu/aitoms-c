@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MINIMAL_PLAN, validatePlan } from "./plan-schema.ts";
+import { validatePlan } from "./plan-schema.ts";
 
 const FILES = ["app/page.tsx", "lib/db/index.ts", "components/ui/button.tsx"];
 const BASE = {
@@ -37,8 +37,17 @@ test("有数据模型但未声明 lib/db/index.ts 被拒绝", () => {
   assert.equal(validatePlan(plan, FILES).ok, false);
 });
 
-test("非对象或空页面被拒绝后可用最小计划", () => {
+test("非对象或空页面明确拒绝，不以兜底计划交付", () => {
   assert.equal(validatePlan("nope", FILES).ok, false);
   assert.equal(validatePlan({ pages: [], items: [] }, FILES).ok, false);
-  assert.equal(validatePlan(MINIMAL_PLAN, FILES).ok, true);
+});
+
+test('计划声明的每个页面必须有对应实现，不能只有首页就交付',()=>{
+ assert.equal(validatePlan({...BASE,pages:['/','/admin']},FILES).ok,false);
+ assert.equal(validatePlan({...BASE,items:[...BASE.items,BASE.items[0]]},FILES).ok,false);
+});
+
+test('SPEC声明的页面不能通过缩小plan.pages绕过',async()=>{
+ const {requiredSpecRoutes}=await import('./plan-schema.ts');
+ assert.deepEqual(requiredSpecRoutes('## 目标\n网站\n## 页面\n- `/` 首页\n- `/books/[id]` 详情\n## 数据模型\n无'),['/','/books/[id]']);
 });

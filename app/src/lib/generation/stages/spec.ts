@@ -1,3 +1,4 @@
+import { config } from "@/lib/config";
 import { generateText } from "ai";
 import { getModel } from "@/lib/ai/model";
 import { addRunTokens } from "@/lib/db/generation";
@@ -16,6 +17,7 @@ async function generateSpec(ctx: StageContext, prompt: string): Promise<string> 
     prompt,
     temperature: 0.2,
     abortSignal: ctx.signal,
+      timeout: { totalMs: config.generationModelTimeoutMs, firstChunkMs: config.modelFirstChunkTimeoutMs, chunkMs: config.modelChunkTimeoutMs },
   });
   addRunTokens(ctx.runId, {
     input: result.usage.inputTokens,
@@ -51,7 +53,7 @@ export async function runSpecStage(ctx: StageContext): Promise<StageResult> {
     return { ok: false, error: `SPEC 生成失败：${message}` };
   }
 
-  let validation = validateSpec(text);
+  let validation = validateSpec(text, { delivery: true });
   if (!validation.ok) {
     ctx.log("warn", `SPEC 校验未通过，重试一次：${validation.errors.join("；")}`);
     if (ctx.signal.aborted) {
@@ -74,7 +76,7 @@ export async function runSpecStage(ctx: StageContext): Promise<StageResult> {
       ctx.emit({ type: "file", path, status: "failed", error: message });
       return { ok: false, error: `SPEC 生成失败：${message}` };
     }
-    validation = validateSpec(text);
+    validation = validateSpec(text, { delivery: true });
   }
 
   if (!validation.ok) {
@@ -82,6 +84,8 @@ export async function runSpecStage(ctx: StageContext): Promise<StageResult> {
     ctx.emit({ type: "file", path, status: "failed", error: reason });
     return { ok: false, error: reason };
   }
+
+  if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
 
   try {
     writeFile(ctx.projectId, path, text);

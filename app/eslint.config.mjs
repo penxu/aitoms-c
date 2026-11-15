@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // 生成流水线校验构建的产物目录
+    ".next-validation/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

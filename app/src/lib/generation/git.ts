@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { resolveInsideProject } from "@/lib/workspace/paths";
 import { runCommand } from "@/lib/workspace/command";
 
 /**
@@ -24,6 +27,13 @@ export async function ensureGitRepo(projectId: string): Promise<void> {
 export async function commitAll(projectId: string, message: string): Promise<boolean> {
   await ensureGitRepo(projectId);
 
+  // 排除平台缓存而不把已忽略目录作为显式pathspec（Git会因此返回1）。
+  const excluded = resolveInsideProject(projectId, ".git/info/exclude", { allowMissing: true });
+  fs.mkdirSync(path.dirname(excluded), { recursive: true });
+  const previous = fs.existsSync(excluded) ? fs.readFileSync(excluded, "utf8") : "";
+  const patterns = ["acceptance", "candidates", "runtime", "dependency-backups", "recovery", "checkpoints"].map(dir => `/.atoms/${dir}/`);
+  const missing = patterns.filter(pattern => !previous.split("\n").includes(pattern));
+  if (missing.length) fs.appendFileSync(excluded, `\n${missing.join("\n")}\n`);
   const add = await runCommand(projectId, "git add -A");
   if (add.exitCode !== 0) {
     throw new Error(`git add 失败：${add.stderr || add.stdout}`);

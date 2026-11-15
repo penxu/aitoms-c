@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { config } from "@/lib/config";
-import { ensureProjectRoot } from "./paths";
+import { resolveInsideProject } from "./paths";
+import { createWorkspaceExecution, ensureWorkspaceRuntime } from "./execution";
 
 /**
  * 命令执行：cwd 锁定项目目录、超时强制终止、输出截断、黑名单拦截。
@@ -43,10 +44,10 @@ function truncate(text: string): string {
   return `${text.slice(0, config.maxToolOutputChars)}\n... [输出已截断]`;
 }
 
-export function runCommand(
+export async function runCommand(
   projectId: string,
   command: string,
-  opts: { timeoutMs?: number; env?: Record<string, string>; signal?: AbortSignal } = {},
+  opts: { timeoutMs?: number; env?: Record<string, string>; signal?: AbortSignal; cwd?: string } = {},
 ): Promise<CommandResult> {
   assertCommandAllowed(command);
 
@@ -60,13 +61,16 @@ export function runCommand(
     });
   }
 
-  const cwd = ensureProjectRoot(projectId);
+  const cwd = resolveInsideProject(projectId, opts.cwd ?? ".");
+  await ensureWorkspaceRuntime(cwd, opts.signal);
+  if (opts.signal?.aborted) return {stdout:"",stderr:"",exitCode:null,timedOut:false,aborted:true};
+  const execution = createWorkspaceExecution(cwd, command, opts.env);
   const timeoutMs = opts.timeoutMs ?? config.commandTimeoutMs;
 
   return new Promise((resolve) => {
-    const child = spawn("bash", ["-lc", command], {
+    const child = spawn(execution.command, execution.args, {
       cwd,
-      env: { ...process.env, ...opts.env },
+      env: execution.env,
       detached: true,
     });
 
@@ -92,6 +96,7 @@ export function runCommand(
     const timer = setTimeout(() => {
       timedOut = true;
       killGroup("SIGKILL");
+      execution.cleanup?.();
     }, timeoutMs);
 
     // 取消：先 SIGTERM 整个子进程组，3 秒后仍未退出则 SIGKILL
@@ -100,10 +105,12 @@ export function runCommand(
       if (settled || aborted) return;
       aborted = true;
       killGroup("SIGTERM");
+      execution.cleanup?.();
       killTimer = setTimeout(() => killGroup("SIGKILL"), 3000);
       killTimer.unref?.();
     };
     opts.signal?.addEventListener("abort", onAbort, { once: true });
+    if(opts.signal?.aborted) onAbort();
 
     child.stdout.on("data", (chunk: Buffer) => {
       if (stdout.length < config.maxToolOutputChars * 2) stdout += chunk.toString();
@@ -115,6 +122,7 @@ export function runCommand(
     const finish = (exitCode: number | null) => {
       if (settled) return;
       settled = true;
+      execution.cleanup?.();
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
       opts.signal?.removeEventListener("abort", onAbort);

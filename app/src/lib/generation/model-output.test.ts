@@ -11,9 +11,9 @@ test("stripCodeFence 丢弃代码块前的说明文字", () => {
   assert.equal(stripCodeFence(text), 'import Link from "next/link";');
 });
 
-test("stripCodeFence 有多个代码块时取最长的一段", () => {
+test("stripCodeFence 多个代码块保持原样", () => {
   const text = "```bash\npnpm i\n```\n\n```ts\nexport const a = 1;\nexport const b = 2;\n```";
-  assert.equal(stripCodeFence(text), "export const a = 1;\nexport const b = 2;");
+  assert.equal(stripCodeFence(text), text);
 });
 
 test("stripCodeFence 无围栏时裁掉代码前的解释", () => {
@@ -28,4 +28,25 @@ test("extractJson 容忍说明与围栏", () => {
 
 test("extractJson 在缺少 JSON 时抛错", () => {
   assert.throws(() => extractJson("没有 JSON"), /没有 JSON 对象/);
+});
+
+test("stripCodeFence 清除兼容模型尾随协议结束标记，保留代码字符串内相同文字", () => {
+  const code = 'export const text = "</｜｜DSML｜｜>";';
+  assert.equal(stripCodeFence(`${code}\n</｜｜DSML｜｜>`), code);
+  assert.equal(stripCodeFence(code), code);
+});
+
+test("stripCodeFence 清除确切末尾的DSML多层结束标记", () => {
+  const code = 'export const text = "</｜｜DSML｜｜ parameter>";';
+  assert.equal(stripCodeFence(`${code}\n</｜｜DSML｜｜ parameter>\n</｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>`), code);
+  assert.equal(stripCodeFence(code), code);
+});
+
+test("合法源码内嵌Markdown围栏保持完整", () => {
+ const source = 'export const help = `示例：\n```ts\nconst example = 1;\n```\n结束`;';
+ assert.equal(stripCodeFence(source), source);
+});
+
+test("declare与async开头的合法源码不裁掉开头", () => {
+ for (const source of ['declare const value: string;\nexport { value };', 'async function load() {}\nexport { load };']) assert.equal(stripCodeFence(source), source);
 });

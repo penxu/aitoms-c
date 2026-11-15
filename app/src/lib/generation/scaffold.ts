@@ -1,8 +1,11 @@
+import { dependencyFingerprint, prepareDependencyRuntime, isReusableDependencyTree, publishDependencyCache, restoreDependencyCache } from "./dependency-cache";
+import { runCommand, type CommandResult } from "@/lib/workspace/command";
+import { installDependenciesCommand } from "@/lib/workspace/toolchain";
+import { workspaceExecutionRuntime, ensureWorkspaceRuntime } from "@/lib/workspace/execution";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "@/lib/config";
-import { runCommand } from "@/lib/workspace/command";
 import { ensureProjectRoot, resolveInsideProject } from "@/lib/workspace/paths";
 import { commitAll, ensureGitRepo } from "./git";
 
@@ -37,8 +40,8 @@ export function templateHash(): string {
   return createHash("sha256").update(fs.readFileSync(pkgPath)).digest("hex").slice(0, 16);
 }
 
-function cacheDir(): string {
-  return path.join(config.templateCacheRoot, templateHash());
+function cacheDir(fingerprint: string): string {
+  return path.join(config.templateCacheRoot, `pnpm-v3-${fingerprint}`);
 }
 
 /** 模板内全部文件的相对路径（posix 风格，已排序） */
@@ -62,44 +65,49 @@ export function listTemplateFiles(): string[] {
   return files.sort();
 }
 
-export function hasNodeModulesCache(): boolean {
-  return fs.existsSync(path.join(cacheDir(), "node_modules"));
+export function hasNodeModulesCache(projectId: string): boolean {
+  const fingerprint = dependencyFingerprint(ensureProjectRoot(projectId));
+  return !!fingerprint && isReusableDependencyTree(path.join(cacheDir(fingerprint), "node_modules"));
 }
 
-/** 用硬链接从缓存恢复 node_modules，失败时回退为普通拷贝 */
-export async function restoreNodeModulesCache(projectId: string): Promise<boolean> {
-  const source = path.join(cacheDir(), "node_modules");
-  if (!fs.existsSync(source)) return false;
-
-  // 先清掉可能残留的 node_modules，避免 cp 把源目录嵌套进去
-  const clean = await runCommand(projectId, "rm -rf node_modules", { timeoutMs: 120_000 });
-  if (clean.exitCode !== 0) return false;
-
-  const link = await runCommand(projectId, `cp -al "${source}" node_modules`, {
-    timeoutMs: 120_000,
-  });
-  if (link.exitCode === 0) return true;
-
-  const copy = await runCommand(projectId, `cp -a "${source}" node_modules`, {
-    timeoutMs: 120_000,
-  });
-  return copy.exitCode === 0;
+export async function restoreNodeModulesCache(projectId: string, cwd = "."): Promise<boolean> {
+  const root = resolveInsideProject(projectId, cwd);
+  const fingerprint = dependencyFingerprint(root);
+  if (!fingerprint) return false;
+  const target = resolveInsideProject(projectId, path.join(cwd, "node_modules"), {allowMissing:true});
+  return restoreDependencyCache(cacheDir(fingerprint), target, fingerprint);
 }
 
-/** 首次安装完成后把 node_modules 快照到模板缓存（硬链接，几乎不占空间） */
-export async function saveNodeModulesCache(projectId: string): Promise<void> {
-  const root = ensureProjectRoot(projectId);
-  if (!fs.existsSync(path.join(root, "node_modules"))) return;
+export async function saveNodeModulesCache(projectId: string, cwd = "."): Promise<void> {
+  const root = resolveInsideProject(projectId, cwd);
+  const fingerprint = dependencyFingerprint(root);
+  const source = resolveInsideProject(projectId, path.join(cwd, "node_modules"), {allowMissing:true});
+  if (!fingerprint || !isReusableDependencyTree(source)) return;
+  try {publishDependencyCache(source, cacheDir(fingerprint), fingerprint);} catch { /* 缓存失败不影响交付 */ }
+}
 
-  const target = cacheDir();
-  if (fs.existsSync(path.join(target, "node_modules"))) return;
-
-  const mkdir = await runCommand(projectId, `mkdir -p "${target}"`, { timeoutMs: 120_000 });
-  if (mkdir.exitCode !== 0) return;
-
-  await runCommand(projectId, `cp -al node_modules "${path.join(target, "node_modules")}"`, {
-    timeoutMs: 120_000,
-  });
+/** 即使命中缓存也由固定 pnpm 校验清单与锁文件，并实际安装缺失依赖。 */
+export async function ensureProjectDependencies(projectId: string, signal?: AbortSignal, env?: Record<string,string>, cwd = ".", packages: string[] = []): Promise<CommandResult> {
+  const command=installDependenciesCommand(packages);
+  if(signal?.aborted)return {stdout:"",stderr:"",exitCode:null,timedOut:false,aborted:true};
+  const root=resolveInsideProject(projectId,cwd);
+  await ensureWorkspaceRuntime(root,signal);
+  const modules=path.join(root,"node_modules");
+  const runtime=JSON.stringify(workspaceExecutionRuntime(root));
+  prepareDependencyRuntime(root,runtime);
+  await restoreNodeModulesCache(projectId,cwd);
+  const result = await runCommand(projectId, command, {timeoutMs:300_000,signal,env,cwd});
+  if (result.exitCode === 0 && !result.aborted && !result.timedOut) {
+    const npmLock=resolveInsideProject(projectId,path.join(cwd,"package-lock.json"),{allowMissing:true});
+    if (fs.existsSync(npmLock)) fs.unlinkSync(npmLock);
+    if(fs.existsSync(modules)) {
+      const manifest=path.join(modules,".atoms-runtime.json");
+      if(fs.existsSync(manifest))fs.unlinkSync(manifest);
+      fs.writeFileSync(manifest,JSON.stringify({runtime,fingerprint:dependencyFingerprint(root)}));
+    }
+    await saveNodeModulesCache(projectId,cwd);
+  }
+  return result;
 }
 
 /** 目录已有内容但没有 .atoms/：视为用户已有成果，禁止覆盖 */
@@ -134,7 +142,7 @@ export async function scaffoldProject(projectId: string): Promise<ScaffoldResult
   await ensureGitRepo(projectId);
   await commitAll(projectId, "chore: 初始化工程骨架");
 
-  if (hasNodeModulesCache() && !fs.existsSync(path.join(root, "node_modules"))) {
+  if (hasNodeModulesCache(projectId) && !fs.existsSync(path.join(root, "node_modules"))) {
     await restoreNodeModulesCache(projectId);
   }
 

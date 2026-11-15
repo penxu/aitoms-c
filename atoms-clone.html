@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atoms：用 AI 构建网站与应用，无需编码</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f8f6;
+  --bg-card:#ffffff;
+  --ink:#0c0c0c;
+  --ink-2:rgba(12,12,12,.64);
+  --ink-3:rgba(12,12,12,.45);
+  --line:rgba(12,12,12,.08);
+  --blue:#4267ff;
+  --blue-soft:#9ab4ff;
+  --green:#2dbb5c;
+  --orange:#ffba6c;
+  --purple:#b88ade;
+  --pink:#ff7fa7;
+  --yellow:#eea44a;
+  --radius:20px;
+  --font:'IBM Plex Sans',ui-sans-serif,system-ui,-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:16px;line-height:1.6}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+.container{max-width:1200px;margin:0 auto;padding:0 32px}
+section{position:relative}
+
+/* ===== 顶部横幅 ===== */
+.top-banner{background:#0c0c0c;color:#fff;text-align:center;font-size:13.5px;padding:9px 16px;position:relative;z-index:60}
+.top-banner b{color:#9ab4ff;font-weight:600}
+.top-banner a{color:#fff;text-decoration:underline;text-underline-offset:3px;margin-left:10px}
+
+/* ===== 导航 ===== */
+header{position:sticky;top:0;z-index:50;background:rgba(248,248,246,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+.nav-logo{display:flex;align-items:center;gap:10px}
+.nav-logo svg{height:22px;width:auto;fill:var(--ink)}
+.nav-links{display:flex;align-items:center;gap:32px;font-size:14.5px;color:var(--ink-2)}
+.nav-links a{transition:color .2s}
+.nav-links a:hover{color:var(--ink)}
+.nav-right{display:flex;align-items:center;gap:20px;font-size:14.5px}
+.nav-right .login{color:var(--ink-2);transition:color .2s}
+.nav-right .login:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:500;border-radius:999px;transition:all .25s}
+.btn-primary{background:var(--blue);color:#fff;padding:9px 20px;font-size:14.5px}
+.btn-primary:hover{background:#2f50f0;transform:translateY(-1px)}
+.btn-dark{background:var(--ink);color:#fff;padding:13px 30px;font-size:15.5px}
+.btn-dark:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(12,12,12,.18)}
+.btn-ghost{border:1px solid var(--line);color:var(--ink);padding:13px 28px;font-size:15px;background:#fff}
+.btn-ghost:hover{border-color:rgba(12,12,12,.24)}
+
+/* ===== Hero ===== */
+.hero{text-align:center;padding:96px 0 80px;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-40% -20% auto;height:900px;background:
+  radial-gradient(38% 42% at 24% 38%,rgba(66,103,255,.14) 0%,transparent 70%),
+  radial-gradient(34% 40% at 76% 30%,rgba(184,138,222,.12) 0%,transparent 70%),
+  radial-gradient(30% 36% at 52% 58%,rgba(154,180,255,.16) 0%,transparent 70%);
+  pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-2);border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 16px;margin-bottom:28px;position:relative}
+.hero-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(45,187,92,.18)}
+.hero h1{font-size:clamp(40px,5.6vw,68px);line-height:1.14;letter-spacing:-.02em;font-weight:600;position:relative}
+.hero h1 .accent{color:var(--blue)}
+.hero h1 .accent-2{background:linear-gradient(90deg,#4267ff,#b88ade);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:18px;color:var(--ink-2);max-width:560px;margin:24px auto 0}
+.hero-form{display:flex;max-width:560px;margin:40px auto 0;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 24px;box-shadow:0 8px 32px rgba(12,12,12,.06);position:relative}
+.hero-form input{flex:1;border:none;outline:none;font-size:15px;font-family:inherit;color:var(--ink);background:transparent}
+.hero-form input::placeholder{color:var(--ink-3)}
+.hero-form .btn-primary{padding:12px 30px;font-size:15px}
+.hero-note{margin-top:16px;font-size:13px;color:var(--ink-3)}
+
+/* ===== 通用 Section 头部 ===== */
+.sec-head{text-align:center;max-width:680px;margin:0 auto 56px}
+.sec-head h2{font-size:clamp(30px,3.6vw,44px);font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.sec-head p{margin-top:14px;color:var(--ink-2);font-size:16.5px}
+.sec-head .kicker{display:inline-block;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin-bottom:14px}
+
+/* ===== 构建什么：卡片 ===== */
+.builds{padding:40px 0 100px}
+.builds-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.build-card{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:transform .3s,box-shadow .3s;cursor:pointer}
+.build-card:hover{transform:translateY(-5px);box-shadow:0 20px 44px rgba(12,12,12,.09)}
+.build-card .thumb{aspect-ratio:16/10;overflow:hidden;background:#eee}
+.build-card .thumb img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.build-card:hover .thumb img{transform:scale(1.04)}
+.build-card .meta{padding:16px 20px 20px}
+.build-card .meta h3{font-size:16.5px;font-weight:600}
+.build-card .meta p{font-size:13.5px;color:var(--ink-3);margin-top:2px}
+
+/* ===== 信任区 ===== */
+.trust{background:#0c0c0c;color:#fff;padding:100px 0;border-radius:40px 40px 0 0}
+.trust .sec-head h2{color:#fff}
+.trust .sec-head p{color:rgba(255,255,255,.6)}
+.trust-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.t-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:var(--radius);padding:32px;position:relative;overflow:hidden;transition:background .3s,border-color .3s}
+.t-card:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)}
+.t-card .label{font-size:13px;color:rgba(255,255,255,.5);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.t-card .big{font-size:42px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.t-card .big em{font-style:normal;color:var(--blue-soft)}
+.t-card .desc{font-size:14px;color:rgba(255,255,255,.62);margin-top:8px}
+.t-card.t-video{grid-row:span 2;display:flex;flex-direction:column;justify-content:flex-end;min-height:420px;background:linear-gradient(160deg,#141420 0%,#1b1c2e 60%,#232745 100%)}
+.t-card.t-video .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.t-card.t-video .play .ring{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.14);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;transition:transform .3s,background .3s}
+.t-card:hover .play .ring{transform:scale(1.08);background:rgba(255,255,255,.22)}
+.t-card.t-video .play .tri{width:0;height:0;border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px}
+.t-card.t-course .course-link{margin-top:16px;display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:#9ab4ff}
+.t-card.t-course .course-link:hover{text-decoration:underline;text-underline-offset:3px}
+.t-card .papers{margin-top:14px;display:flex;flex-direction:column;gap:9px}
+.t-card .paper{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(255,255,255,.72)}
+.t-card .paper img{height:16px;width:auto;opacity:.85}
+.t-card .paper .conf{color:rgba(255,255,255,.4);font-size:12px}
+.t-card.t-github .big{display:flex;align-items:center;gap:12px}
+.t-card.t-github svg{width:34px;height:34px;fill:#fff}
+.t-card.t-ph .big{display:flex;align-items:baseline;gap:10px}
+.t-card.t-ph .big span{font-size:15px;color:rgba(255,255,255,.55);font-weight:500}
+
+/* ===== Logo 墙 ===== */
+.logos{padding:90px 0}
+.logos p{text-align:center;color:var(--ink-2);font-size:15px;margin-bottom:36px}
+.logo-wall{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:20px 44px}
+.logo-wall .lg{height:30px;display:flex;align-items:center;opacity:.62;filter:grayscale(1);transition:all .25s;cursor:pointer}
+.logo-wall .lg:hover{opacity:1;filter:none;transform:translateY(-2px)}
+.logo-wall img{height:30px;width:auto}
+
+/* ===== AI 团队 ===== */
+.team{padding:20px 0 100px}
+.team .sec-head{margin-bottom:20px}
+.team-sub{text-align:center;color:var(--ink-2);font-size:16px;max-width:640px;margin:-34px auto 48px}
+.team-sub .btn{margin-top:22px}
+.team-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.agent{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:24px;transition:transform .3s,box-shadow .3s;position:relative;overflow:hidden}
+.agent:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(12,12,12,.08)}
+.agent .ava{width:52px;height:52px;border-radius:50%;overflow:hidden;margin-bottom:16px;background:#eee;position:relative}
+.agent .ava img{width:100%;height:100%;object-fit:cover}
+.agent .name{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
+.agent .role{font-size:12.5px;font-weight:600;margin:4px 0 10px}
+.agent .role.c-blue{color:var(--blue)}
+.agent .role.c-green{color:var(--green)}
+.agent .role.c-orange{color:#e8912d}
+.agent .role.c-purple{color:var(--purple)}
+.agent .role.c-pink{color:var(--pink)}
+.agent .role.c-teal{color:#2ba3ff}
+.agent .role.c-yellow{color:#b07818}
+.agent .role.c-red{color:#e05252}
+.agent .desc{font-size:13.5px;color:var(--ink-2);line-height:1.55}
+
+/* ===== 工作流 ===== */
+.workflow{padding:100px 0;background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.wf-row{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;padding:52px 0}
+.wf-row:nth-child(even){direction:rtl}
+.wf-row>*{direction:ltr}
+.wf-text .tag{display:inline-block;font-size:12.5px;font-weight:600;color:var(--blue);background:rgba(66,103,255,.08);border-radius:999px;padding:5px 14px;margin-bottom:18px}
+.wf-text h3{font-size:29px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+.wf-text p{margin-top:14px;color:var(--ink-2);font-size:15.5px}
+.wf-visual{height:280px;border-radius:var(--radius);border:1px solid var(--line);position:relative;overflow:hidden;box-shadow:0 24px 60px rgba(12,12,12,.08)}
+
+/* 聊天 mockup */
+.mock-chat{background:linear-gradient(160deg,#fbfbfa,#f2f2ef);display:flex;flex-direction:column;justify-content:flex-end;padding:22px;gap:12px}
+.mock-chat .msg{max-width:78%;padding:11px 16px;border-radius:16px;font-size:13px;line-height:1.5}
+.mock-chat .user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:4px}
+.mock-chat .ai{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.mock-chat .typing{display:inline-flex;gap:5px;align-items:center}
+.mock-chat .typing i{width:6px;height:6px;border-radius:50%;background:#9ab4ff;display:block}
+
+/* App 窗口 mockup */
+.mock-app{background:linear-gradient(160deg,#ffffff,#f4f4f2)}
+.mock-app .bar{height:40px;background:#fafaf9;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:7px;padding:0 16px}
+.mock-app .bar i{width:10px;height:10px;border-radius:50%}
+.mock-app .bar i:nth-child(1){background:#ff5f57}.mock-app .bar i:nth-child(2){background:#febc2e}.mock-app .bar i:nth-child(3){background:#28c840}
+.mock-app .bar .url{flex:1;margin-left:12px;height:20px;border-radius:6px;background:rgba(12,12,12,.05);font-size:10px;color:var(--ink-3);display:flex;align-items:center;padding:0 10px;font-family:var(--mono)}
+.mock-app .body{display:grid;grid-template-columns:88px 1fr;height:calc(100% - 40px)}
+.mock-app .side{border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:10px}
+.mock-app .side i{height:10px;border-radius:5px;background:rgba(12,12,12,.08)}
+.mock-app .side i:first-child{width:70%;background:rgba(66,103,255,.35)}
+.mock-app .main{padding:18px;display:flex;flex-direction:column;gap:12px}
+.mock-app .main .row{display:flex;gap:10px}
+.mock-app .main .block{border-radius:10px;background:rgba(12,12,12,.05)}
+.mock-app .main .hero-b{height:74px;border-radius:12px;background:linear-gradient(120deg,#4267ff,#b88ade);opacity:.85}
+
+/* 仪表盘 mockup */
+.mock-dash{background:#101014;padding:22px}
+.mock-dash .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.mock-dash .top .t{font-size:13px;color:#fff;font-weight:600}
+.mock-dash .top .pill{font-size:10px;color:#9ab4ff;border:1px solid rgba(154,180,255,.4);padding:3px 10px;border-radius:999px}
+.mock-dash .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.mock-dash .stat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px}
+.mock-dash .stat .k{font-size:9px;color:rgba(255,255,255,.45);margin-bottom:6px}
+.mock-dash .stat .v{font-size:15px;color:#fff;font-weight:600}
+.mock-dash .stat .v.g{color:var(--green);font-size:11px}
+.mock-dash .chart{height:110px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;position:relative;overflow:hidden}
+.mock-dash .chart svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* 收入 mockup */
+.mock-rev{background:linear-gradient(150deg,#fff,#f6f3ff);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px}
+.mock-rev .amount{font-size:38px;font-weight:700;letter-spacing:-.02em}
+.mock-rev .amount small{font-size:14px;color:var(--green);font-weight:600;background:rgba(45,187,92,.12);padding:3px 10px;border-radius:999px;margin-left:10px;vertical-align:middle}
+.mock-rev .bars{display:flex;align-items:flex-end;gap:8px;height:90px}
+.mock-rev .bars i{width:16px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#4267ff,#9ab4ff)}
+.mock-rev .cap{font-size:12px;color:var(--ink-3)}
+
+/* 代码 mockup */
+.mock-code{background:#0d0d12;padding:20px;font-family:var(--mono);font-size:11.5px;line-height:2;color:#c8c8d4}
+.mock-code .ln{display:flex;gap:14px}
+.mock-code .n{color:rgba(255,255,255,.22);width:16px;text-align:right;flex:none}
+.mock-code .kw{color:#9ab4ff}.mock-code .s{color:#2dbb5c}.mock-code .cm{color:#5c5c70}.mock-code .fn{color:#b88ade}
+
+/* ===== 视频区 ===== */
+.video-sec{padding:100px 0}
+.video-wrap{max-width:880px;margin:0 auto;position:relative;border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(12,12,12,.14);cursor:pointer;background:#0c0c0c}
+.video-wrap img{width:100%;aspect-ratio:16/9;object-fit:cover;opacity:.88;transition:transform .6s,opacity .4s}
+.video-wrap:hover img{transform:scale(1.03);opacity:1}
+.video-wrap .vplay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px}
+.video-wrap .vplay .ring{width:74px;height:74px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 40px rgba(0,0,0,.3);transition:transform .3s}
+.video-wrap:hover .vplay .ring{transform:scale(1.08)}
+.video-wrap .vplay .tri{width:0;height:0;border-left:18px solid #0c0c0c;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px}
+.video-wrap .vplay span{color:#fff;font-size:14px;background:rgba(0,0,0,.4);padding:6px 14px;border-radius:999px;backdrop-filter:blur(6px)}
+.video-cap{text-align:center;margin-top:28px}
+.video-cap h3{font-size:26px;font-weight:600}
+.video-cap p{color:var(--ink-2);margin-top:6px}
+.video-cap .btn{margin-top:22px}
+
+/* ===== 你所需的一切 bento ===== */
+.everything{padding:100px 0;background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:20px}
+.b-card{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:28px;position:relative;overflow:hidden;transition:transform .3s,box-shadow .3s}
+.b-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(12,12,12,.07)}
+.b-card h3{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
+.b-card p{font-size:13.8px;color:var(--ink-2);margin-top:10px}
+.b-card .ico{width:38px;height:38px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+.ico-blue{background:rgba(66,103,255,.12);color:var(--blue)}
+.ico-green{background:rgba(45,187,92,.12);color:var(--green)}
+.ico-orange{background:rgba(238,164,74,.14);color:#e8912d}
+.ico-purple{background:rgba(184,138,222,.14);color:var(--purple)}
+.ico-pink{background:rgba(255,127,167,.14);color:var(--pink)}
+.ico-teal{background:rgba(43,163,255,.12);color:#2ba3ff}
+.b-2col{grid-column:span 3}
+.b-3col{grid-column:span 3}
+.b-1col{grid-column:span 2}
+.b-more{grid-column:span 2}
+.b-more .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.b-more .chips span{font-size:12.5px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;color:var(--ink-2)}
+.b-more h3 .plus{color:var(--blue);font-weight:400}
+.b-rev{grid-column:span 4;background:#0c0c0c;color:#fff}
+.b-rev h3{color:#fff}
+.b-rev p{color:rgba(255,255,255,.6)}
+.b-rev .mini-bars{display:flex;align-items:flex-end;gap:6px;height:56px;margin-top:18px}
+.b-rev .mini-bars i{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#4267ff,rgba(154,180,255,.5))}
+
+/* ===== 成功故事 ===== */
+.stories{padding:100px 0}
+.stories-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:24px;align-items:stretch}
+.story-cta{background:linear-gradient(160deg,#4267ff,#6a48e8);border-radius:var(--radius);color:#fff;padding:40px;display:flex;flex-direction:column;justify-content:space-between;min-height:320px}
+.story-cta h3{font-size:26px;font-weight:600;line-height:1.3}
+.story-cta p{color:rgba(255,255,255,.85);margin-top:12px;font-size:14.5px}
+.story-cta .btn{background:#fff;color:var(--blue);align-self:flex-start;margin-top:24px}
+.story-card{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:40px;display:flex;flex-direction:column;justify-content:center}
+.story-card .quote{font-size:19px;line-height:1.7;font-weight:400}
+.story-card .quote::before{content:"“";color:var(--blue-soft);font-size:44px;line-height:0;vertical-align:-14px;margin-right:4px;font-family:Georgia,serif}
+.story-card .who{display:flex;align-items:center;gap:14px;margin-top:28px}
+.story-card .who .ava{width:46px;height:46px;border-radius:50%;overflow:hidden;background:#eee}
+.story-card .who .ava img{width:100%;height:100%;object-fit:cover}
+.story-card .who .nm{font-weight:600;font-size:15px}
+.story-card .who .lo{font-size:13px;color:var(--ink-3)}
+
+/* ===== 定价 ===== */
+.pricing{padding:100px 0;background:#fff;border-top:1px solid var(--line)}
+.bill-toggle{display:flex;align-items:center;justify-content:center;gap:14px;margin:-28px auto 56px}
+.bill-toggle .opt{font-size:15px;color:var(--ink-2);transition:color .2s}
+.bill-toggle .opt.on{color:var(--ink);font-weight:600}
+.bill-toggle .switch{width:46px;height:26px;border-radius:999px;background:var(--blue);position:relative;cursor:pointer;transition:background .3s}
+.bill-toggle .switch i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .3s}
+.bill-toggle .switch.m i{left:23px}
+.bill-toggle .save{font-size:12px;color:var(--green);background:rgba(45,187,92,.1);padding:3px 10px;border-radius:999px;font-weight:600}
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1020px;margin:0 auto}
+.price-card{background:var(--bg);border:1px solid var(--line);border-radius:24px;padding:34px;display:flex;flex-direction:column}
+.price-card.hot{background:#0c0c0c;color:#fff;border-color:#0c0c0c;position:relative;box-shadow:0 24px 60px rgba(12,12,12,.22)}
+.price-card.hot .p-name,.price-card.hot .amt,.price-card.hot .p-desc{color:#fff}
+.price-card .badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#4267ff,#b88ade);color:#fff;font-size:12px;font-weight:600;padding:5px 16px;border-radius:999px;white-space:nowrap}
+.p-name{font-size:15px;font-weight:600;color:var(--ink-2)}
+.amt{font-size:44px;font-weight:700;letter-spacing:-.02em;margin-top:12px;line-height:1}
+.amt small{font-size:15px;font-weight:500;color:var(--ink-3)}
+.price-card.hot .amt small{color:rgba(255,255,255,.55)}
+.p-desc{font-size:13px;color:var(--ink-2);margin-top:8px;min-height:38px}
+.price-card.hot .p-desc{color:rgba(255,255,255,.6)}
+.p-list{margin:24px 0 30px;display:flex;flex-direction:column;gap:12px;flex:1}
+.p-list .li{display:flex;gap:10px;font-size:14px;color:var(--ink-2);align-items:flex-start}
+.price-card.hot .p-list .li{color:rgba(255,255,255,.75)}
+.p-list .li svg{flex:none;margin-top:4px}
+.price-card .btn{width:100%}
+.price-card.hot .btn{background:#fff;color:#0c0c0c}
+.price-card.hot .btn:hover{background:#e8e8e8;box-shadow:none}
+
+/* ===== FAQ ===== */
+.faq{padding:100px 0 120px;background:#fff;border-top:1px solid var(--line)}
+.faq-list{max-width:780px;margin:0 auto}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-q{width:100%;display:flex;justify-content:space-between;align-items:center;gap:20px;text-align:left;padding:26px 4px;font-size:16.5px;font-weight:500;color:var(--ink);transition:color .2s}
+.faq-q:hover{color:var(--blue)}
+.faq-q .pm{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink-2);transition:all .3s;font-weight:400}
+.faq-item.open .faq-q .pm{transform:rotate(45deg);background:var(--blue);border-color:var(--blue);color:#fff}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.faq-a .inner{padding:0 40px 26px 4px;color:var(--ink-2);font-size:14.8px;line-height:1.75}
+.faq-a .inner ul{margin:10px 0 0 18px}
+.faq-a .inner li{margin-top:4px}
+
+/* ===== 底部 CTA ===== */
+.final-cta{background:#0c0c0c;color:#fff;text-align:center;padding:110px 0;position:relative;overflow:hidden}
+.final-cta::before{content:"";position:absolute;inset:auto -10% -60% -10%;height:480px;background:
+  radial-gradient(45% 55% at 30% 20%,rgba(66,103,255,.35) 0%,transparent 70%),
+  radial-gradient(40% 50% at 70% 30%,rgba(184,138,222,.28) 0%,transparent 70%);
+  pointer-events:none}
+.final-cta h2{font-size:clamp(34px,4.4vw,54px);font-weight:600;letter-spacing:-.01em;position:relative}
+.final-cta h2 span{background:linear-gradient(90deg,#9ab4ff,#b88ade);-webkit-background-clip:text;background-clip:text;color:transparent}
+.final-cta .btn{margin-top:36px;background:#fff;color:#0c0c0c;padding:14px 34px;font-size:16px;position:relative}
+.final-cta .btn:hover{transform:translateY(-1px);box-shadow:0 14px 34px rgba(255,255,255,.2)}
+
+/* ===== Footer ===== */
+footer{background:#0c0c0c;color:#fff;border-top:1px solid rgba(255,255,255,.08);padding:70px 0 40px}
+.foot-grid{display:flex;justify-content:space-between;gap:60px;flex-wrap:wrap}
+.foot-brand{max-width:280px}
+.foot-brand svg{height:24px;width:auto;fill:#fff;margin-bottom:18px}
+.foot-brand p{font-size:14px;color:rgba(255,255,255,.55)}
+.foot-cols{display:flex;gap:72px;flex-wrap:wrap}
+.foot-col h4{font-size:13px;color:rgba(255,255,255,.42);font-weight:600;margin-bottom:18px;letter-spacing:.04em}
+.foot-col a{display:block;font-size:14px;color:rgba(255,255,255,.8);margin-bottom:12px;transition:color .2s}
+.foot-col a:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.foot-social{display:flex;gap:14px;margin-top:4px}
+.foot-social a{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;transition:all .25s}
+.foot-social a:hover{background:#fff;border-color:#fff}
+.foot-social a svg{width:16px;height:16px;fill:rgba(255,255,255,.85);transition:fill .25s}
+.foot-social a:hover svg{fill:#0c0c0c}
+.foot-bottom{margin-top:56px;padding-top:24px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:center;font-size:13.5px;color:rgba(255,255,255,.5);flex-wrap:wrap;gap:14px}
+.foot-bottom .lang{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.foot-bottom .lang svg{opacity:.7}
+
+/* ===== 浮动小窗 ===== */
+.float-tip{position:fixed;right:22px;bottom:22px;z-index:70;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 48px rgba(12,12,12,.14);padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:13px;max-width:290px}
+.float-tip .close{position:absolute;top:8px;right:10px;color:var(--ink-3);font-size:14px;line-height:1}
+.float-tip .em{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#4267ff,#b88ade);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.float-tip b{display:block;font-size:13.5px}
+
+/* ===== 动画 ===== */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.reveal{opacity:0}
+.reveal.in{animation:fadeUp .7s ease forwards}
+
+@media (max-width:1024px){
+  .team-grid{grid-template-columns:repeat(2,1fr)}
+  .builds-grid{grid-template-columns:repeat(2,1fr)}
+  .trust-grid{grid-template-columns:repeat(2,1fr)}
+  .price-grid{grid-template-columns:1fr;max-width:440px}
+  .wf-row{grid-template-columns:1fr;gap:32px}
+  .bento{grid-template-columns:repeat(2,1fr)}
+  .b-2col,.b-3col,.b-rev,.b-1col,.b-more{grid-column:span 2}
+  .stories-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+}
+@media (max-width:640px){
+  .builds-grid,.team-grid,.trust-grid{grid-template-columns:1fr}
+  .t-card.t-video{grid-row:auto;min-height:260px}
+  .bento{grid-template-columns:1fr}
+  .b-2col,.b-3col,.b-rev,.b-1col,.b-more{grid-column:span 1}
+  .hero-form{flex-direction:row}
+  .container{padding:0 20px}
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部横幅 -->
+<div class="top-banner">Atoms：用 AI 构建网站与应用，无需编码 <b>立即上手</b></div>
+
+<!-- 导航 -->
+<header>
+  <div class="container nav">
+    <a class="nav-logo" href="#" aria-label="Atoms">
+      <svg viewBox="0 0 3392 1024" xmlns="http://www.w3.org/2000/svg"><path d="M1580.032 757.504l-40.32-127.36h-178.624l-39.616 127.36H1224.96l168.512-499.648h118.144l167.04 499.648h-98.624z m-128.192-413.696h-3.584l-64.128 205.44h132.48l-64.768-205.44zM1853.824 757.504c-31.68 0-55.936-8.064-72.704-24.32-16.32-16.64-24.512-40.32-24.512-70.848v-205.44h-55.424V383.872h28.8c13.952 0 23.296-3.136 28.096-9.28 5.248-6.72 7.872-16.512 7.872-29.376v-63.68h82.88v102.336h77.056v72.96h-77.056v227.648h71.296v73.024h-66.304zM2152.064 766.08c-26.88 0-51.136-4.48-72.704-13.568a154.048 154.048 0 0 1-54.72-39.36 183.68 183.68 0 0 1-34.56-61.568 255.744 255.744 0 0 1-12.288-81.6c0-30.08 4.096-57.024 12.224-80.896 8.192-23.872 19.712-44.16 34.56-60.8 15.36-17.28 33.664-30.336 54.784-39.424a186.24 186.24 0 0 1 72.704-13.568c26.88 0 51.2 4.48 72.768 13.568 21.568 9.088 39.808 22.208 54.72 39.36 15.36 16.704 27.136 36.992 35.264 60.864 8.192 23.872 12.288 50.816 12.288 80.896s-4.096 57.28-12.288 81.6a177.28 177.28 0 0 1-35.264 61.568 146.112 146.112 0 0 1-54.72 39.36 186.24 186.24 0 0 1-72.768 13.632z m0-73.728c24.512 0 43.712-7.36 57.6-22.144 13.952-14.784 20.928-36.48 20.928-65.152V535.616c0-28.16-6.976-49.6-20.928-64.448-13.888-14.72-33.088-22.144-57.6-22.144-24 0-42.944 7.36-56.896 22.144-13.888 14.848-20.864 36.288-20.864 64.448v69.44c0 28.608 6.976 50.368 20.864 65.152 13.952 14.72 32.896 22.208 56.96 22.208zM2408.832 757.504V383.872h92.16v62.272h3.584c7.232-19.584 18.752-36.288 34.56-50.112 15.872-13.824 37.952-20.736 66.24-20.736 25.984 0 48.32 6.208 67.008 18.56 18.752 12.416 32.64 31.296 41.792 56.576h1.408c6.72-20.992 19.968-38.656 39.68-52.992 20.096-14.72 45.312-22.144 75.52-22.144 36.992 0 65.28 12.608 84.992 37.888 20.224 25.344 30.272 61.376 30.272 108.16v236.16h-92.16V530.624c0-53.44-20.16-80.192-60.48-80.192-9.152 0-18.048 1.408-26.688 4.288a66.048 66.048 0 0 0-22.336 11.52 52.928 52.928 0 0 0-15.104 18.56 53.76 53.76 0 0 0-5.76 25.792v246.912h-92.16V530.624c0-53.44-20.16-80.192-60.544-80.192-8.64 0-17.28 1.408-25.92 4.288a66.048 66.048 0 0 0-22.336 11.52 60.608 60.608 0 0 0-15.808 18.56 53.76 53.76 0 0 0-5.76 25.792v246.912h-92.16zM3171.2 766.08c-35.968 0-66.24-5.952-90.688-17.92a213.632 213.632 0 0 1-64.832-50.752l56.192-54.4c13.888 15.744 29.056 28.16 45.376 37.184 16.768 9.088 35.968 13.632 57.6 13.632 22.08 0 37.952-3.84 47.552-11.52a37.312 37.312 0 0 0 15.104-31.424 32.192 32.192 0 0 0-10.816-25.792c-6.72-6.656-18.496-11.2-35.264-13.568l-37.44-5.056c-40.832-5.248-72.064-16.64-93.632-34.368-21.12-18.112-31.68-44.352-31.68-78.72 0-18.112 3.328-34.368 10.048-48.64 6.72-14.848 16.32-27.2 28.8-37.248 12.48-10.496 27.392-18.368 44.672-23.68 17.792-5.696 37.44-8.512 59.072-8.512 18.24 0 34.304 1.408 48.256 4.288 14.4 2.368 27.328 6.208 38.848 11.456 11.52 4.736 22.08 10.944 31.68 18.56 9.6 7.168 19.008 15.36 28.16 24.32l-54.08 53.76a142.656 142.656 0 0 0-39.616-28.672 111.68 111.68 0 0 0-50.368-11.456c-20.16 0-34.816 3.584-43.968 10.752a34.56 34.56 0 0 0-12.928 27.904c0 12.416 3.584 21.952 10.816 28.672 7.68 6.208 20.352 10.688 38.144 13.568l38.144 5.056c81.152 11.392 121.728 48.192 121.728 110.208 0 18.112-3.84 34.816-11.52 50.112a114.112 114.112 0 0 1-30.976 38.656 157.44 157.44 0 0 1-48.96 25.024c-18.752 5.76-39.872 8.576-63.36 8.576zM274.752 842.88c3.584-51.456 100.032-86.656 215.36-78.528 115.264 8.064 205.824 56.32 202.24 107.84-3.584 51.456-100.032 86.656-215.36 78.592-115.264-8.128-205.824-56.384-202.24-107.904zM700.8 547.712c27.136-119.616 105.6-203.776 175.232-187.968 69.632 15.808 104.128 125.632 76.992 245.248-27.136 119.616-105.6 203.712-175.168 187.968-69.632-15.808-104.128-125.632-76.992-245.248zM110.272 308.352C192.64 140.16 351.424 48.832 465.152 104.448c113.728 55.68 139.264 237.184 56.96 405.44-82.176 168.256-241.088 259.52-354.816 203.904-113.728-55.68-139.264-237.184-56.96-405.44zM589.44 83.2c17.6-26.24 95.808-4.608 174.72 48.256 78.848 52.864 128.64 116.992 111.04 143.232-17.536 26.24-95.744 4.672-174.72-48.192C621.696 173.632 571.904 109.44 589.44 83.2z"/></svg>
+    </a>
+    <nav class="nav-links">
+      <a href="#">模板</a>
+      <a href="#">资源</a>
+      <a href="#">社区</a>
+      <a href="#">关于</a>
+      <a href="#pricing">定价</a>
+    </nav>
+    <div class="nav-right">
+      <a class="login" href="#">登录</a>
+      <a class="btn btn-primary" href="#">注册</a>
+    </div>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge"><span class="dot"></span>AI 员工，几分钟内从想法到上线</div>
+    <h1>把想法变成可销售的<br><span class="accent">产品</span></h1>
+    <p>AI 员工用于验证想法、构建产品并获取客户。几分钟内完成。无需编码。</p>
+    <form class="hero-form" onsubmit="return false">
+      <input type="text" placeholder="描述你想构建的产品，例如：一个预约看牙的小程序…">
+      <button class="btn btn-primary" type="submit">开始</button>
+    </form>
+    <div class="hero-note">免费开始，无需信用卡</div>
+  </div>
+</section>
+
+<!-- Atoms 能构建什么 -->
+<section class="builds">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">BUILD ANYTHING</span>
+      <h2>Atoms 能构建什么？</h2>
+      <p>从落地页到全栈应用，描述你的想法，剩下的交给 AI 团队。</p>
+    </div>
+    <div class="builds-grid">
+      <div class="build-card reveal"><div class="thumb"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/saas-landing/poster.webp" alt="SaaS 落地页" loading="lazy"></div><div class="meta"><h3>SaaS 落地页</h3><p>托管 · 登录 · 支付</p></div></div>
+      <div class="build-card reveal"><div class="thumb"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/independent-brands/poster.webp" alt="独立品牌与批发" loading="lazy"></div><div class="meta"><h3>独立品牌与批发</h3><p>电商 · 品牌 · 批发</p></div></div>
+      <div class="build-card reveal"><div class="thumb"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/film-studio/poster.webp" alt="电影工作室网站" loading="lazy"></div><div class="meta"><h3>电影工作室网站</h3><p>作品集 · 展示</p></div></div>
+      <div class="build-card reveal"><div class="thumb"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/popular/poster.webp" alt="热门推荐平台" loading="lazy"></div><div class="meta"><h3>热门推荐平台</h3><p>内容 · 推荐 · 增长</p></div></div>
+      <div class="build-card reveal"><div class="thumb"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/creative-video/poster.webp" alt="创意视频" loading="lazy"></div><div class="meta"><h3>创意视频</h3><p>创作 · 分享</p></div></div>
+      <div class="build-card reveal"><div class="thumb"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/shooting-game/poster.webp" alt="射击游戏" loading="lazy"></div><div class="meta"><h3>射击游戏</h3><p>游戏 · 娱乐</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 信任区 -->
+<section class="trust">
+  <div class="container">
+    <div class="sec-head reveal">
+      <h2>为什么大家信任 Atoms？</h2>
+      <p>全球构建者、顶级研究与开发者社区的共同选择。</p>
+    </div>
+    <div class="trust-grid">
+      <div class="t-card t-video reveal">
+        <div class="play"><div class="ring"><div class="tri"></div></div></div>
+        <div class="label">探索 Atoms</div>
+        <div class="big" style="font-size:22px;font-weight:600">看 AI 团队<br>如何协同工作</div>
+      </div>
+      <div class="t-card reveal">
+        <div class="label">全球触达</div>
+        <div class="big"><em>170+</em></div>
+        <div class="desc">使用 Atoms 的国家和地区</div>
+      </div>
+      <div class="t-card reveal">
+        <div class="label">正在创建课程</div>
+        <div class="big" style="font-size:19px;font-weight:600;line-height:1.4">我如何用 Atoms AI 打造可变现的 app</div>
+        <a class="course-link" href="#">查看详情 →</a>
+      </div>
+      <div class="t-card reveal">
+        <div class="label">社区</div>
+        <div class="big"><em>1M+</em></div>
+        <div class="desc">我们社区中的构建者，用 Atoms 让创意落地。</div>
+      </div>
+      <div class="t-card reveal">
+        <div class="label">学术研究 · 约 30 篇论文</div>
+        <div class="papers">
+          <div class="paper"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/research/ICLR.svg" alt="ICLR">MetaGPT <span class="conf">ICLR 2024 口头报告</span></div>
+          <div class="paper"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/research/ICLR.svg" alt="ICLR">AFlow <span class="conf">ICLR 2025 口头报告</span></div>
+          <div class="paper"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/research/arXiv.svg" alt="arXiv">基础智能体的进展与挑战 <span class="conf">arXiv 2025</span></div>
+          <div class="paper"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/research/NeurIPS.svg" alt="NeurIPS">Atom of Thoughts <span class="conf">NeurIPS 2025</span></div>
+          <div class="paper"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/research/ICML.svg" alt="ICML">AutoWebWorld <span class="conf">ICML 2026</span></div>
+          <div class="paper"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/research/arXiv.svg" alt="arXiv">AOrchestra <span class="conf">arXiv 2026</span></div>
+        </div>
+      </div>
+      <div class="t-card t-github reveal">
+        <div class="label">GitHub</div>
+        <div class="big"><svg viewBox="0 0 1024 1024"><path d="M512 85.376A426.56 426.56 0 0 0 85.44 512a426.368 426.368 0 0 0 291.712 404.8c21.376 3.776 29.376-9.024 29.376-20.224 0-10.176-0.576-43.776-0.576-79.488-107.2 19.712-134.912-26.112-143.424-50.112-4.8-12.288-25.6-50.176-43.776-60.288-14.912-8-36.224-27.712-0.512-28.288 33.6-0.512 57.6 30.976 65.6 43.776 38.4 64.512 99.712 46.4 124.288 35.2 3.712-27.776 14.912-46.4 27.2-57.088-94.976-10.688-194.176-47.488-194.176-210.688 0-46.4 16.576-84.8 43.776-114.624-4.288-10.688-19.2-54.4 4.224-113.088 0 0 35.776-11.2 117.376 43.712 34.112-9.6 70.4-14.4 106.624-14.4 36.288 0 72.576 4.8 106.688 14.4 81.6-55.424 117.312-43.712 117.312-43.712 23.488 58.688 8.576 102.4 4.288 113.088a165.12 165.12 0 0 1 43.712 114.624c0 163.776-99.712 200-194.624 210.688 15.424 13.312 28.8 38.912 28.8 78.912 0 57.088-0.576 102.976-0.576 117.376 0 11.2 8 24.512 29.376 20.224A427.328 427.328 0 0 0 938.688 512a426.56 426.56 0 0 0-426.624-426.624z"/></svg>16.8万</div>
+        <div class="desc">我们团队开源项目累计获得的 GitHub Star。</div>
+      </div>
+      <div class="t-card t-ph reveal">
+        <div class="label">Product Hunt</div>
+        <div class="big">#1<span>每周精选产品</span></div>
+        <div class="desc">上线一周即登顶 Product Hunt 周榜。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Logo 墙 -->
+<section class="logos">
+  <div class="container">
+    <p>受到这些公司的创作者信赖：</p>
+    <div class="logo-wall">
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/openai.svg" alt="OpenAI"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/nvidia.svg" alt="NVIDIA"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/stanford.svg" alt="Stanford"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/google.svg" alt="Google"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/amazon.svg" alt="Amazon"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/mit.svg" alt="MIT"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/microsoft.svg" alt="Microsoft"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/salesforce.svg" alt="Salesforce"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/uc-berkeley.svg" alt="UC Berkeley"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/tesla.svg" alt="Tesla"></div>
+      <div class="lg"><img src="https://public-frontend-cos.metadl.com/commonfile/logo_wall/light/samsung.svg" alt="Samsung"></div>
+    </div>
+  </div>
+</section>
+
+<!-- AI 团队 -->
+<section class="team">
+  <div class="container">
+    <div class="sec-head reveal">
+      <h2>你的 <span style="color:var(--blue)">AI 团队</span>，帮助你更快构建并赢得客户</h2>
+    </div>
+    <p class="team-sub">一个完整的 AI 团队，帮助你以更低成本更快发布。你做决策，智能体负责研究、规划、构建、测试和增长。<br><a class="btn btn-dark" href="#">立即尝试</a></p>
+    <div class="team-grid">
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-1.webp" alt="Iris" loading="lazy"></div><div class="name">Iris</div><div class="role c-blue">Deep Researcher</div><div class="desc">通过 Deep Research 发现真实需求和细分市场，然后将信号转化为聚焦的机会。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-2.webp" alt="Bob" loading="lazy"></div><div class="name">Bob</div><div class="role c-purple">Architect</div><div class="desc">设计系统蓝图，选择合适的结构，使你的应用可扩展且可靠。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-3.webp" alt="Adrian" loading="lazy"></div><div class="name">Adrian</div><div class="role c-orange">Ads Specialist</div><div class="desc">自动运行 Google Ads。负责管理广告系列创建、跟踪和优化，以更少的投入实现增长扩展。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-4.webp" alt="Emma" loading="lazy"></div><div class="name">Emma</div><div class="role c-pink">Product Manager</div><div class="desc">将你的想法转化为明确的规格和范围，以便构建保持简单且可用。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-5.webp" alt="Mike" loading="lazy"></div><div class="name">Mike</div><div class="role c-green">Team Leader</div><div class="desc">端到端运行计划，协调 agents，并请求你的批准，这样你在保持知情的同时也能快速行动。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-1.webp" alt="Sarah" loading="lazy"></div><div class="name">Sarah</div><div class="role c-teal">SEO Specialist</div><div class="desc">快速推出 SEO 页面并自动化优化，以更低的成本快速带来自然流量。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-2.webp" alt="Alex" loading="lazy"></div><div class="name">Alex</div><div class="role c-blue">Engineer</div><div class="desc">通过连接前端、后端、集成和部署，构建一个可投入生产的全栈应用。</div></div>
+      <div class="agent reveal"><div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-3.webp" alt="David" loading="lazy"></div><div class="name">David</div><div class="role c-yellow">Data Analyst</div><div class="desc">通过分析海量数据发现增长机会，并呈现清晰洞察，帮助你做出更明智、数据驱动的决策。</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 工作流 -->
+<section class="workflow">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">ALL-IN-ONE</span>
+      <h2>调研、设计、编程、<br><span style="background:linear-gradient(90deg,#4267ff,#b88ade);-webkit-background-clip:text;background-clip:text;color:transparent">增长，尽在一处</span></h2>
+      <p>调研、设计、代码与增长协同推进</p>
+    </div>
+
+    <div class="wf-row reveal">
+      <div class="wf-text">
+        <span class="tag">速度</span>
+        <h3>几分钟即可上线，不用等几周</h3>
+        <p>告诉 Atoms 你的想法，几分钟内就能看到它构建出可用的应用。通过与 AI 聊天，获取完整的功能页面、流程和特性。</p>
+      </div>
+      <div class="wf-visual mock-chat">
+        <div class="msg user">帮我做一个宠物美容预约网站，要有会员卡和在线支付</div>
+        <div class="msg ai">好的，我先完成市场调研，然后规划页面结构，随后开始构建预约流程与支付集成。</div>
+        <div class="msg ai"><span class="typing"><i></i><i></i><i></i></span></div>
+      </div>
+    </div>
+
+    <div class="wf-row reveal">
+      <div class="wf-text">
+        <span class="tag">真实产品</span>
+        <h3>真实应用，不只是演示</h3>
+        <p>构建一个可发布、可增长并可扩展的真实产品。所有刚需功能内置，包括用户登录、数据存储和 Stripe 支付。</p>
+      </div>
+      <div class="wf-visual mock-app">
+        <div class="bar"><i></i><i></i><i></i><div class="url">https://pawcare.atoms.app</div></div>
+        <div class="body">
+          <div class="side"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="main">
+            <div class="row"><div class="block" style="width:52%;height:16px"></div><div class="block" style="width:18%;height:16px;margin-left:auto"></div></div>
+            <div class="hero-b"></div>
+            <div class="row"><div class="block" style="flex:1;height:56px"></div><div class="block" style="flex:1;height:56px"></div><div class="block" style="flex:1;height:56px"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-row reveal">
+      <div class="wf-text">
+        <span class="tag">一站式</span>
+        <h3>商业工具包，尽在一处</h3>
+        <p>在一个地方运行整个工作流程。进行市场调研、构建全栈应用、部署、优化 SEO、添加集成并跟踪结果。Atoms 可自动处理繁琐工作，让你专注于最重要的事情。</p>
+      </div>
+      <div class="wf-visual mock-dash">
+        <div class="top"><div class="t">Growth Overview</div><div class="pill">Live</div></div>
+        <div class="stats">
+          <div class="stat"><div class="k">访问量</div><div class="v">12,480</div></div>
+          <div class="stat"><div class="k">注册</div><div class="v">1,024</div></div>
+          <div class="stat"><div class="k">本周收入</div><div class="v">$3,268</div><div class="v g">↑ 18.2%</div></div>
+        </div>
+        <div class="chart">
+          <svg viewBox="0 0 400 110" preserveAspectRatio="none">
+            <defs><linearGradient id="lg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4267ff" stop-opacity=".5"/><stop offset="1" stop-color="#4267ff" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0 95 C40 90 60 70 100 72 S160 55 200 48 260 40 300 26 360 18 400 10 L400 110 L0 110 Z" fill="url(#lg1)"/>
+            <path d="M0 95 C40 90 60 70 100 72 S160 55 200 48 260 40 300 26 360 18 400 10" fill="none" stroke="#4267ff" stroke-width="2.5"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-row reveal">
+      <div class="wf-text">
+        <span class="tag">变现</span>
+        <h3>获得付费客户和收入</h3>
+        <p>把想法变成用户愿意付费的产品。借助全栈业务能力，Atoms 负责发布、托管和日常运营，让你更快实现收入。</p>
+      </div>
+      <div class="wf-visual mock-rev">
+        <div class="amount">$12,940<small>↑ 24%</small></div>
+        <div class="bars"><i style="height:26%"></i><i style="height:38%"></i><i style="height:32%"></i><i style="height:52%"></i><i style="height:46%"></i><i style="height:64%"></i><i style="height:58%"></i><i style="height:82%"></i><i style="height:100%"></i></div>
+        <div class="cap">月度经常性收入（MRR）</div>
+      </div>
+    </div>
+
+    <div class="wf-row reveal">
+      <div class="wf-text">
+        <span class="tag">所有权</span>
+        <h3>始终拥有完整所有权</h3>
+        <p>随时导出代码并同步到 GitHub。在你的业务增长时，保持对项目的完全控制。</p>
+      </div>
+      <div class="wf-visual mock-code">
+        <div class="ln"><span class="n">1</span><span class="cm">// 你的项目，你的代码</span></div>
+        <div class="ln"><span class="n">2</span><span><span class="kw">import</span> { deploy } <span class="kw">from</span> <span class="s">'@atoms/sdk'</span>;</span></div>
+        <div class="ln"><span class="n">3</span><span>&nbsp;</span></div>
+        <div class="ln"><span class="n">4</span><span><span class="kw">await</span> <span class="fn">deploy</span>({</span></div>
+        <div class="ln"><span class="n">5</span><span>&nbsp;&nbsp;project: <span class="s">'pawcare-app'</span>,</span></div>
+        <div class="ln"><span class="n">6</span><span>&nbsp;&nbsp;sync: <span class="s">'github'</span> <span class="cm">// 一键同步到 GitHub</span></span></div>
+        <div class="ln"><span class="n">7</span><span>});</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 视频 -->
+<section class="video-sec">
+  <div class="container">
+    <div class="video-wrap reveal">
+      <img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/founder-builds/saas-landing/poster.webp" alt="免费试用视频">
+      <div class="vplay"><div class="ring"><div class="tri"></div></div><span>几分钟而不是几周</span></div>
+    </div>
+    <div class="video-cap reveal">
+      <h3>免费试用</h3>
+      <p>几分钟而不是几周</p>
+      <a class="btn btn-dark" href="#">免费开始构建</a>
+    </div>
+  </div>
+</section>
+
+<!-- 你所需的一切 -->
+<section class="everything">
+  <div class="container">
+    <div class="sec-head reveal">
+      <h2>你所需的一切</h2>
+      <p>构建、发布与变现 —— 收入集中展示</p>
+    </div>
+    <div class="bento">
+      <div class="b-card b-rev reveal">
+        <h3>收入集中展示</h3>
+        <p>构建、发布和增长所需的一切。收入、订阅与客户数据集中在一处仪表盘。</p>
+        <div class="mini-bars"><i style="height:30%"></i><i style="height:45%"></i><i style="height:38%"></i><i style="height:62%"></i><i style="height:55%"></i><i style="height:78%"></i><i style="height:100%"></i><i style="height:86%"></i></div>
+      </div>
+      <div class="b-card b-more reveal">
+        <h3>更多功能</h3>
+        <p>持续扩展的能力集：</p>
+        <div class="chips"><span>深度研究</span><span>主题设计</span><span>Atoms Backend</span><span>SEO 专家</span></div>
+      </div>
+      <div class="b-card b-2col reveal">
+        <h3><span class="ico ico-blue">✎</span>可视化编辑器</h3>
+        <p>精准实现你的设计。一个可视化编辑器，可快速调整布局和组件。</p>
+      </div>
+      <div class="b-card b-2col reveal">
+        <h3><span class="ico ico-teal">☁</span>Atoms 云</h3>
+        <p>Atoms Cloud 为你的应用提供全栈后端，包括用户登录、数据库、集成和可扩展的托管。</p>
+      </div>
+      <div class="b-card b-2col reveal">
+        <h3><span class="ico ico-green">⚡</span>竞赛模式</h3>
+        <p>在多个模型上运行你的 prompt，即刻获得最佳版本。</p>
+      </div>
+      <div class="b-card b-2col reveal">
+        <h3><span class="ico ico-purple">✦</span>即时 AI 集成</h3>
+        <p>使用 Gemini 和 GPT 等模型为你的产品添加强大的 AI — 无需 API 密钥，无需设置。</p>
+      </div>
+      <div class="b-card b-2col reveal">
+        <h3><span class="ico ico-orange">◎</span>SEO 智能体</h3>
+        <p>自动使你的网站搜索引擎可见，让 Google 能爬取、索引并对带来真实客户的页面进行排名。</p>
+      </div>
+      <div class="b-card b-2col reveal">
+        <h3><span class="ico ico-pink">↗</span>广告专家</h3>
+        <p>以更少的人工工作实现增长扩展。Ads specialist 负责管理广告系列创建、跟踪和优化。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 成功故事 -->
+<section class="stories">
+  <div class="container">
+    <div class="sec-head reveal">
+      <h2>遍及 <span style="color:var(--blue)">世界</span> 的成功故事</h2>
+    </div>
+    <div class="stories-grid">
+      <div class="story-cta reveal">
+        <div>
+          <h3>下一个成功故事，<br>由你书写</h3>
+          <p>加入 1M+ 构建者，用 Atoms 把你的想法变成真实的产品。</p>
+        </div>
+        <a class="btn" href="#">开启你的成功故事</a>
+      </div>
+      <div class="story-card reveal">
+        <div class="quote">我经营一家窗户清洁业务，过去依赖多个应用来完成工作。我构建了一个将预约估价、日程安排和客户文件集中在一个地方的应用。”</div>
+        <div class="who">
+          <div class="ava"><img src="https://public-frontend-cos.metadl.com/commonfile/home/v1.3.x/community/avatars/avatar-5.webp" alt="Sal"></div>
+          <div><div class="nm">Sal</div><div class="lo">United States</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 定价 -->
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="sec-head reveal">
+      <h2>定价</h2>
+      <p>免费开始。灵活扩展。</p>
+    </div>
+    <div class="bill-toggle">
+      <span class="opt on" data-bill="year">按年</span>
+      <div class="switch" id="billSwitch" onclick="toggleBill()"><i></i></div>
+      <span class="opt" data-bill="month">按月</span>
+      <span class="save">· 最多可节省 21%</span>
+    </div>
+    <div class="price-grid">
+      <div class="price-card reveal">
+        <div class="p-name">免费版</div>
+        <div class="amt">$0<small> /月</small></div>
+        <div class="p-desc">永久免费，适合轻度使用</div>
+        <div class="p-list">
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>每天 15 / 每月 25 积分</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>基础模型访问</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>社区支持</div>
+        </div>
+        <a class="btn btn-ghost" href="#">免费开始</a>
+      </div>
+      <div class="price-card hot reveal">
+        <div class="badge">最受欢迎</div>
+        <div class="p-name">专业版</div>
+        <div class="amt"><span id="proPrice">$16</span><small> /月起</small></div>
+        <div class="p-desc">专为高频使用的专业人士设计</div>
+        <div class="p-list">
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(66,103,255,.35)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>100 积分/月（默认），可扩展至 250 或 350 积分</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(66,103,255,.35)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>高级模型与竞赛模式</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(66,103,255,.35)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>代码导出与 GitHub 同步</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(66,103,255,.35)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>优先支持</div>
+        </div>
+        <a class="btn" href="#">选择专业版</a>
+      </div>
+      <div class="price-card reveal">
+        <div class="p-name">Max</div>
+        <div class="amt"><span id="maxPrice">$80</span><small> /月起</small></div>
+        <div class="p-desc">更高的准确率、算力和存储。增强模式可将准确率提升至 3×</div>
+        <div class="p-list">
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>500 积分/月（默认），最高可选 10,000 积分</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>增强模式：准确率提升至 3×</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>更大存储与并发</div>
+          <div class="li"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="rgba(45,187,92,.15)"/><path d="M4.7 8.3l2.2 2.2 4.4-4.6" stroke="#2dbb5c" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>专属支持</div>
+        </div>
+        <a class="btn btn-ghost" href="#">选择 Max</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq">
+  <div class="container">
+    <div class="sec-head reveal">
+      <h2>常见问题</h2>
+    </div>
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <button class="faq-q">什么是 Atoms？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">Atoms 是一个由 AI 驱动的开发平台，可将你的想法变成可运行的产品。它运行多智能体工作流，由一支 AI 团队组成，例如产品经理、工程师和数据科学家，他们协同工作，从零开始规划、构建、测试并发布你的应用。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">我可以用 Atoms 构建什么？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">如果你能描述它，Atoms AI 就能构建它。常见项目包括：
+          <ul>
+            <li><b>SaaS</b>：基于订阅的产品，具有用户登录和实时数据库存储</li>
+            <li><b>内部工具</b>：用于管理业务数据的仪表板和工具</li>
+            <li><b>个人网站</b>：精美的作品集、博客或个人品牌网站</li>
+            <li><b>电子商务</b>：具有转化能力的产品页面，并通过 Stripe 提供安全支付</li>
+          </ul>
+        </div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">使用 Atoms 是否需要编程或技术技能？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">不。Atoms AI 是 vibe coding 工具，这意味着你可以通过自然语言来构建。只要能准确描述自己想要什么，就能够构建它。对于高级用户，Atoms AI 还包含代码编辑器，但入门不需要编程经验。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Atoms 应用或网站如何部署？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">一键即可。Atoms AI 为你处理托管和服务器配置。准备好后即可立即发布在线 URL。无需复杂设置。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">积分体系如何运作，定价是否透明？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">Atoms 使用透明的积分体系。积分根据 AI 执行任务的复杂度消耗，例如生成功能、测试和部署。你可以在仪表板上实时查看积分余额和使用情况，从而管理预算。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Atoms 如何帮助我获得付费客户？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">Atoms AI 帮助你超越一个完成的应用，从第一天起推动增长。你可以发布 SEO 页面并自动化 SEO 改进。内置 Stripe 支付，发布后即可开始收费。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">我是否拥有使用 Atoms 构建的内容？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">是的。你可以随时导出代码或将项目同步到 GitHub，这样在持续开发和扩展时就始终拥有完全的控制权。导出代码后，你可以在本地运行它或将其托管在自己的基础设施上。这有助于在产品增长时保持灵活性。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Atoms 可以与我已经使用的工具集成吗？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">是的。Atoms AI 支持与常用工具集成，因此你可以接入现有的工作流程。这有助于你构建可用于真实业务的可行方案，而不仅仅是一个演示。</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Atoms 是否支持我的母语？<span class="pm">＋</span></button>
+        <div class="faq-a"><div class="inner">是的。Atoms 支持自然语言输入，并能跨多种语言工作。你可以使用母语进行构思、聊天和构建，从而获得无缝的开发体验。</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 底部 CTA -->
+<section class="final-cta">
+  <div class="container">
+    <h2>把想法变成畅销的<span>产品</span></h2>
+    <a class="btn" href="#">免费开始构建</a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <svg viewBox="0 0 3392 1024" xmlns="http://www.w3.org/2000/svg"><path d="M1580.032 757.504l-40.32-127.36h-178.624l-39.616 127.36H1224.96l168.512-499.648h118.144l167.04 499.648h-98.624z m-128.192-413.696h-3.584l-64.128 205.44h132.48l-64.768-205.44zM1853.824 757.504c-31.68 0-55.936-8.064-72.704-24.32-16.32-16.64-24.512-40.32-24.512-70.848v-205.44h-55.424V383.872h28.8c13.952 0 23.296-3.136 28.096-9.28 5.248-6.72 7.872-16.512 7.872-29.376v-63.68h82.88v102.336h77.056v72.96h-77.056v227.648h71.296v73.024h-66.304zM2152.064 766.08c-26.88 0-51.136-4.48-72.704-13.568a154.048 154.048 0 0 1-54.72-39.36 183.68 183.68 0 0 1-34.56-61.568 255.744 255.744 0 0 1-12.288-81.6c0-30.08 4.096-57.024 12.224-80.896 8.192-23.872 19.712-44.16 34.56-60.8 15.36-17.28 33.664-30.336 54.784-39.424a186.24 186.24 0 0 1 72.704-13.568c26.88 0 51.2 4.48 72.768 13.568 21.568 9.088 39.808 22.208 54.72 39.36 15.36 16.704 27.136 36.992 35.264 60.864 8.192 23.872 12.288 50.816 12.288 80.896s-4.096 57.28-12.288 81.6a177.28 177.28 0 0 1-35.264 61.568 146.112 146.112 0 0 1-54.72 39.36 186.24 186.24 0 0 1-72.768 13.632z m0-73.728c24.512 0 43.712-7.36 57.6-22.144 13.952-14.784 20.928-36.48 20.928-65.152V535.616c0-28.16-6.976-49.6-20.928-64.448-13.888-14.72-33.088-22.144-57.6-22.144-24 0-42.944 7.36-56.896 22.144-13.888 14.848-20.864 36.288-20.864 64.448v69.44c0 28.608 6.976 50.368 20.864 65.152 13.952 14.72 32.896 22.208 56.96 22.208zM2408.832 757.504V383.872h92.16v62.272h3.584c7.232-19.584 18.752-36.288 34.56-50.112 15.872-13.824 37.952-20.736 66.24-20.736 25.984 0 48.32 6.208 67.008 18.56 18.752 12.416 32.64 31.296 41.792 56.576h1.408c6.72-20.992 19.968-38.656 39.68-52.992 20.096-14.72 45.312-22.144 75.52-22.144 36.992 0 65.28 12.608 84.992 37.888 20.224 25.344 30.272 61.376 30.272 108.16v236.16h-92.16V530.624c0-53.44-20.16-80.192-60.48-80.192-9.152 0-18.048 1.408-26.688 4.288a66.048 66.048 0 0 0-22.336 11.52 52.928 52.928 0 0 0-15.104 18.56 53.76 53.76 0 0 0-5.76 25.792v246.912h-92.16V530.624c0-53.44-20.16-80.192-60.544-80.192-8.64 0-17.28 1.408-25.92 4.288a66.048 66.048 0 0 0-22.336 11.52 60.608 60.608 0 0 0-15.808 18.56 53.76 53.76 0 0 0-5.76 25.792v246.912h-92.16zM3171.2 766.08c-35.968 0-66.24-5.952-90.688-17.92a213.632 213.632 0 0 1-64.832-50.752l56.192-54.4c13.888 15.744 29.056 28.16 45.376 37.184 16.768 9.088 35.968 13.632 57.6 13.632 22.08 0 37.952-3.84 47.552-11.52a37.312 37.312 0 0 0 15.104-31.424 32.192 32.192 0 0 0-10.816-25.792c-6.72-6.656-18.496-11.2-35.264-13.568l-37.44-5.056c-40.832-5.248-72.064-16.64-93.632-34.368-21.12-18.112-31.68-44.352-31.68-78.72 0-18.112 3.328-34.368 10.048-48.64 6.72-14.848 16.32-27.2 28.8-37.248 12.48-10.496 27.392-18.368 44.672-23.68 17.792-5.696 37.44-8.512 59.072-8.512c18.24 0 34.304 1.408 48.256 4.288 14.4 2.368 27.328 6.208 38.848 11.456 11.52 4.736 22.08 10.944 31.68 18.56 9.6 7.168 19.008 15.36 28.16 24.32l-54.08 53.76a142.656 142.656 0 0 0-39.616-28.672 111.68 111.68 0 0 0-50.368-11.456c-20.16 0-34.816 3.584-43.968 10.752a34.56 34.56 0 0 0-12.928 27.904c0 12.416 3.584 21.952 10.816 28.672 7.68 6.208 20.352 10.688 38.144 13.568l38.144 5.056c81.152 11.392 121.728 48.192 121.728 110.208 0 18.112-3.84 34.816-11.52 50.112a114.112 114.112 0 0 1-30.976 38.656 157.44 157.44 0 0 1-48.96 25.024c-18.752 5.76-39.872 8.576-63.36 8.576zM274.752 842.88c3.584-51.456 100.032-86.656 215.36-78.528 115.264 8.064 205.824 56.32 202.24 107.84-3.584 51.456-100.032 86.656-215.36 78.592-115.264-8.128-205.824-56.384-202.24-107.904zM700.8 547.712c27.136-119.616 105.6-203.776 175.232-187.968 69.632 15.808 104.128 125.632 76.992 245.248-27.136 119.616-105.6 203.712-175.168 187.968-69.632-15.808-104.128-125.632-76.992-245.248zM110.272 308.352C192.64 140.16 351.424 48.832 465.152 104.448c113.728 55.68 139.264 237.184 56.96 405.44-82.176 168.256-241.088 259.52-354.816 203.904-113.728-55.68-139.264-237.184-56.96-405.44zM589.44 83.2c17.6-26.24 95.808-4.608 174.72 48.256 78.848 52.864 128.64 116.992 111.04 143.232-17.536 26.24-95.744 4.672-174.72-48.192C621.696 173.632 571.904 109.44 589.44 83.2z"/></svg>
+        <p>把想法变成可销售的产品</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h4>产品</h4>
+          <a href="#">AI Agents</a>
+          <a href="#">模型</a>
+          <a href="#">工具</a>
+          <a href="#">帮助中心</a>
+          <a href="#">Atoms Router</a>
+        </div>
+        <div class="foot-col">
+          <h4>发现</h4>
+          <a href="#">用例</a>
+          <a href="#">比较</a>
+          <a href="#">博客</a>
+          <a href="#">GitHub</a>
+        </div>
+        <div class="foot-col">
+          <h4>公司</h4>
+          <a href="#">关于我们</a>
+          <a href="#">MetaGPT</a>
+          <a href="#">OpenManus</a>
+          <a href="#">Foundation Agents</a>
+          <a href="#">隐私政策</a>
+          <a href="#">服务条款</a>
+          <a href="#">探索者计划</a>
+        </div>
+      </div>
+      <div class="foot-col">
+        <h4>关注我们</h4>
+        <div class="foot-social">
+          <a href="#" aria-label="X / Twitter"><svg viewBox="0 0 1024 1024"><path d="M541.568 373.376L756.224 128h130.304L601.92 453.312 936.768 896H674.56L469.248 627.52 234.24 896H103.872l304.512-347.904L87.04 128h268.8l185.6 245.376z m168.96 444.608h72.192L316.8 201.92H239.168l471.296 616.128z"/></svg></a>
+          <a href="#" aria-label="LinkedIn"><svg viewBox="0 0 1024 1024"><path d="M775.552 563.584c0-71.488-55.488-128.256-117.376-128.256-47.232 0-89.024 0-116.8 59.84-5.12 11.008-11.008 43.136-11.008 59.072v308.736H380.16v-585.6h155.904l7.68 76.288h3.328c22.528-36.224 73.728-76.288 166.016-76.288 112.448 0 213.312 89.024 213.312 252.288v333.312h-150.912V563.584z m-597.504-355.84c-49.088 0-80.768-34.752-80.768-77.696 0-43.968 32.64-77.696 82.816-77.696 50.112 0 80.768 33.728 81.792 77.696 0 42.944-31.68 77.696-83.84 77.696z m-62.72 655.232v-585.6h131.84v585.6h-131.84z"/></svg></a>
+          <a href="#" aria-label="Discord"><svg viewBox="0 0 1024 1024"><path d="M823.616 229.44a738.88 738.88 0 0 0-185.216-57.024c-8.128 14.08-17.216 33.024-23.552 48a707.84 707.84 0 0 0-205.12 0c-6.4-14.976-15.872-33.92-23.552-48-65.216 10.88-127.232 30.336-185.28 57.024C83.648 402.432 51.968 571.328 67.84 737.984a754.752 754.752 0 0 0 226.944 113.6 551.68 551.68 0 0 0 48.448-78.336 474.88 474.88 0 0 1-76.544-36.672c6.4-4.48 12.672-9.472 18.56-14.464 147.648 67.456 307.52 67.456 453.312 0 6.336 4.992 12.16 9.984 18.56 14.464a474.752 474.752 0 0 1-76.544 36.672c14.08 27.648 30.336 53.888 48.448 78.336a750.592 750.592 0 0 0 226.88-113.6c19.52-192.896-30.784-360.448-132.224-508.544zM363.52 635.2c-44.352 0-80.64-40.32-80.64-89.664s35.392-89.664 80.64-89.664c44.8 0 81.536 40.32 80.64 89.6 0 49.408-35.84 89.728-80.64 89.728z m297.6 0c-44.416 0-80.704-40.32-80.704-89.664s35.392-89.664 80.64-89.664c44.8 0 81.472 40.32 80.64 89.6 0 49.408-35.392 89.728-80.64 89.728z"/></svg></a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Atoms. 把想法变成可销售的产品</span>
+      <span class="lang"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm4.9 6.4h-2a11 11 0 0 0-.9-3.6 5.4 5.4 0 0 1 2.9 3.6zM8 2.6c.7.9 1.4 2.4 1.6 4.8H6.4C6.6 5 7.3 3.5 8 2.6zM3.1 7.4a5.4 5.4 0 0 1 2.9-3.6 11 11 0 0 0-.9 3.6h-2zm0 1.2h2c.1 1.4.4 2.6.9 3.6a5.4 5.4 0 0 1-2.9-3.6zm4.9 4.8c-.7-.9-1.4-2.4-1.6-4.8h3.2c-.2 2.4-.9 3.9-1.6 4.8zm2-.7c.5-1 .8-2.2.9-3.4h2a5.4 5.4 0 0 1-2.9 3.4z"/></svg>中文</span>
+    </div>
+  </div>
+</footer>
+
+<!-- 浮动小窗 -->
+<div class="float-tip" id="floatTip">
+  <button class="close" onclick="document.getElementById('floatTip').style.display='none'">✕</button>
+  <div class="em">✦</div>
+  <div><b>准备好构建了吗？</b>描述你的想法，AI 团队立即开工。</div>
+</div>
+
+<script>
+// FAQ 手风琴
+document.querySelectorAll('.faq-q').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var item = btn.parentElement;
+    var open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(function(i){
+      i.classList.remove('open');
+      i.querySelector('.faq-a').style.maxHeight = 0;
+    });
+    if(!open){
+      item.classList.add('open');
+      var a = item.querySelector('.faq-a');
+      a.style.maxHeight = a.scrollHeight + 'px';
+    }
+  });
+});
+
+// 按年/按月切换
+function toggleBill(){
+  var sw = document.getElementById('billSwitch');
+  var monthly = sw.classList.toggle('m');
+  document.querySelectorAll('.bill-toggle .opt').forEach(function(o){
+    o.classList.toggle('on', (o.dataset.bill === 'month') === monthly);
+  });
+  document.getElementById('proPrice').textContent = monthly ? '$20' : '$16';
+  document.getElementById('maxPrice').textContent = monthly ? '$100' : '$80';
+}
+
+// 滚动渐显
+var io = new IntersectionObserver(function(entries){
+  entries.forEach(function(e){
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  });
+},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+</script>
+</body>
+</html>

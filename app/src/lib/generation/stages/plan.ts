@@ -1,15 +1,21 @@
+import {projectRoot} from "@/lib/workspace/paths";
+import {collectSource} from "@/lib/packages/source";
+import {collectExports} from "../source-index";
+import { validateAcceptance, type AcceptanceCheck } from "../acceptance";
+import { config } from "@/lib/config";
 import { generateText } from "ai";
 import { z } from "zod";
 import { getModel } from "@/lib/ai/model";
 import { addRunTokens } from "@/lib/db/generation";
 import { readFile, writeFile } from "@/lib/workspace/files";
-import { MINIMAL_PLAN, PLAN_JSON_PATH, validatePlan } from "../plan-schema";
+import { PLAN_JSON_PATH, requiredSpecRoutes, validatePlan } from "../plan-schema";
 import { extractJson } from "../model-output";
 import { PLAN_SYSTEM_PROMPT, planUserPrompt } from "../prompts";
 import { listTemplateFiles } from "../scaffold";
 import type { GenerationPlan, StageContext, StageResult } from "../types";
 
 const zodPlanSchema = z.object({
+  acceptance: z.array(z.custom<AcceptanceCheck>()).optional(),
   pages: z.array(z.string()),
   items: z.array(
     z.object({
@@ -28,7 +34,7 @@ const zodPlanSchema = z.object({
 });
 
 /** SPEC 的读取上限：计划只需要结构与页面/数据模型信息 */
-const MAX_SPEC_CHARS = 6000;
+const MAX_SPEC_CHARS = 30000;
 
 function shortenSpec(spec: string): string {
   return spec.length <= MAX_SPEC_CHARS ? spec : `${spec.slice(0, MAX_SPEC_CHARS)}\n\n... [需求规格已截断]`;
@@ -45,6 +51,7 @@ async function generatePlanObject(
       prompt,
       temperature: 0.2,
       abortSignal: ctx.signal,
+      timeout: { totalMs: config.generationModelTimeoutMs, firstChunkMs: config.modelFirstChunkTimeoutMs, chunkMs: config.modelChunkTimeoutMs },
     });
     addRunTokens(ctx.runId, {
       input: result.usage.inputTokens,
@@ -62,7 +69,7 @@ async function generatePlanObject(
 
 /**
  * PLAN 阶段：把 SPEC 转成文件级计划并写入 .atoms/PLAN.json。
- * 校验失败带错误重试一次；仍失败降级为最小计划，保证 BUILD 可继续。
+ * 校验失败带错误重试一次；仍失败保留需求并停止，禁止用占位计划替代需求。
  */
 export async function runPlanStage(ctx: StageContext): Promise<StageResult> {
   ctx.log("info", "架构师 Bob 开始拆解文件级计划");
@@ -78,7 +85,10 @@ export async function runPlanStage(ctx: StageContext): Promise<StageResult> {
   }
 
   const templateFiles = listTemplateFiles();
-  const basePrompt = planUserPrompt(shortenSpec(spec), templateFiles);
+  const existingFiles=collectSource(projectRoot(ctx.projectId)).map(file=>file.path);
+  const availableFiles=[...new Set([...templateFiles,...existingFiles])];
+  const exports=collectExports(projectRoot(ctx.projectId));
+  const basePrompt = planUserPrompt(shortenSpec(spec), availableFiles) + `\n\n## 当前工程真实导出（续跑应复用并保持已有调用一致，禁止重复建立不兼容的数据访问层）\n${JSON.stringify(exports)}`;
 
   let errors: string[] = [];
   let plan: GenerationPlan | null = null;
@@ -102,7 +112,13 @@ export async function runPlanStage(ctx: StageContext): Promise<StageResult> {
       continue;
     }
 
-    const validation = validatePlan(generated.object, templateFiles);
+    const object = generated.object as GenerationPlan;
+    const acceptanceErrors = validateAcceptance(object.acceptance);
+    for(const route of requiredSpecRoutes(spec)) if(!object.pages.includes(route)) acceptanceErrors.push(`计划遗漏SPEC页面 ${route}`);
+    const requiredIds = [...new Set(spec.match(/AC-\d+/g) ?? [])];
+    for (const id of requiredIds) if (!object.acceptance?.some(check => check.id === id)) acceptanceErrors.push(`缺少需求验收 ${id}`);
+    if (acceptanceErrors.length) { errors = acceptanceErrors;ctx.log("warn", `验收计划不完整：${errors.join("；")}`);continue; }
+    const validation = validatePlan(generated.object, availableFiles);
     if (validation.ok) {
       plan = generated.object as GenerationPlan;
       break;
@@ -111,10 +127,15 @@ export async function runPlanStage(ctx: StageContext): Promise<StageResult> {
     ctx.log("warn", `计划校验未通过（第 ${attempt + 1} 次）：${validation.errors.join("；")}`);
   }
 
-  if (!plan) {
-    ctx.log("warn", `计划校验失败，已降级为最小计划：${errors.join("；")}`);
-    plan = MINIMAL_PLAN;
-  }
+  if (!plan) return { ok: false, error: `计划生成未完成，已保留需求并停止：${errors.join("；")}` };
+
+  // 先广播计划，UI 可在写代码前展示“将要生成哪些文件”
+  ctx.emit({
+    type: "plan",
+    pages: plan.pages,
+    items: plan.items.map((item) => ({ path: item.path, purpose: item.purpose })),
+    degraded: false,
+  });
 
   ctx.emit({ type: "file", path: PLAN_JSON_PATH, status: "writing" });
   try {

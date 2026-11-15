@@ -1,9 +1,11 @@
+import type { DiscussionRecord } from "./discussion-schema";
+import type { AcceptanceCheck } from "./acceptance";
 /**
  * 生成流水线的共享类型：阶段、状态、角色、事件与阶段上下文。
  * 该文件只含类型与常量，不引入任何运行时依赖，前后端均可引用。
  */
 
-const STAGES = ["scaffold", "spec", "plan", "build", "verify"] as const;
+const STAGES = ["discuss", "scaffold", "spec", "plan", "build", "verify"] as const;
 
 export type GenerationStage = (typeof STAGES)[number];
 
@@ -21,10 +23,11 @@ export interface StageRole {
 
 /**
  * 角色化呈现（仅 UI 层映射，不入库）：
- * scaffold→leader/Mike、spec→pm/Emma、plan→architect/Bob、
+ * discuss→pm/Emma、scaffold→leader/Mike、spec→pm/Emma、plan→architect/Bob、
  * build→engineer/Alex、verify→leader/Mike（验收）
  */
 export const STAGE_ROLES: Record<GenerationStage, StageRole> = {
+  discuss: { id: "pm", name: "Emma", title: "Product Manager / 产品经理", duty: "澄清关键需求与确认方案" },
   scaffold: {
     id: "leader",
     name: "Mike",
@@ -57,15 +60,34 @@ export const STAGE_ROLES: Record<GenerationStage, StageRole> = {
   },
 };
 
-export type GenerationStatus = "running" | "ready" | "failed" | "cancelled" | "interrupted";
+export type GenerationStatus = "running" | "waiting" | "ready" | "failed" | "cancelled" | "interrupted";
 
 export type GenerationEventPayload =
+  | { type: "assessment"; summary: string; known: string[] }
+  | { type: "discussion"; discussion: DiscussionRecord }
   | {
       type: "stage";
       stage: GenerationStage;
       status: "running" | "done" | "failed";
       durationMs?: number;
       error?: string;
+    }
+  | {
+      type: "code";
+      path: string;
+      /** Cumulative tail snapshot (up to 18,000 characters), never a token delta. */
+      content: string;
+      status: "streaming" | "complete";
+      totalChars?: number;
+      totalLines?: number;
+    }
+  | {
+      /** 文件级执行计划：让用户在写代码之前就看到将要生成什么 */
+      type: "plan";
+      pages: string[];
+      items: { path: string; purpose: string }[];
+      /** 计划校验失败降级为最小计划时为 true */
+      degraded?: boolean;
     }
   | { type: "file"; path: string; status: "writing" | "done" | "failed"; error?: string }
   | { type: "log"; level: "info" | "warn" | "error"; message: string }
@@ -79,6 +101,7 @@ export interface PlanItem {
 }
 
 export interface GenerationPlan {
+  acceptance?: AcceptanceCheck[];
   pages: string[];
   items: PlanItem[];
   dataModel: { table: string; columns: string[] }[];
@@ -97,6 +120,7 @@ export interface StageContext {
 
 export interface StageResult {
   ok: boolean;
+  waiting?: boolean;
   error?: string;
   /** PLAN 阶段成功时返回校验后的计划，由编排器注入后续阶段 */
   plan?: GenerationPlan;

@@ -1,3 +1,6 @@
+import { pinServiceToSnapshot } from "@/lib/runner";
+import { prepareCandidate } from "@/lib/generation/candidate-snapshot";
+import { acquireProjectMutation, ProjectBusyError } from "@/lib/workspace/mutations";
 import { NextResponse } from "next/server";
 import { listFiles, readFileForEditor, writeFile } from "@/lib/workspace/files";
 import { ensureProjectRoot } from "@/lib/workspace/paths";
@@ -32,10 +35,13 @@ export async function PUT(
   if (!body.path || typeof body.content !== "string") {
     return NextResponse.json({ error: "缺少 path 或 content" }, { status: 400 });
   }
+  let release: (() => void) | undefined;
   try {
+    release = acquireProjectMutation(id, "editor");
+    await pinServiceToSnapshot(id, () => prepareCandidate(id, `editor-${Date.now()}-baseline`));
     writeFile(id, body.path, body.content);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
-  }
+    return NextResponse.json({ error: (err as Error).message }, { status: err instanceof ProjectBusyError ? 409 : 400 });
+  } finally { release?.(); }
 }

@@ -1,3 +1,6 @@
+import { refreshProjectPreview } from "@/lib/workspace/preview";
+import { ensureProjectDependencies } from "@/lib/generation/scaffold";
+import { installDependenciesCommand } from "@/lib/workspace/toolchain";
 import { tool } from "ai";
 import { z } from "zod";
 import fs from "node:fs";
@@ -11,8 +14,8 @@ import {
   searchFiles,
   writeFile,
 } from "@/lib/workspace/files";
-import { ensureProjectRoot } from "@/lib/workspace/paths";
-import { restartService, startService, stopService } from "@/lib/runner";
+import { ensureProjectRoot, resolveInsideProject } from "@/lib/workspace/paths";
+import { stopService } from "@/lib/runner";
 
 /**
  * Harness Agent 工具集：AI 在项目目录内拥有完整读写与执行能力。
@@ -99,7 +102,9 @@ export default defineConfig({ plugins: [react()] });
 `,
 };
 
-export function createHarnessTools(projectId: string) {
+export function createHarnessTools(projectId: string, baseSignal?:AbortSignal) {
+  const active=(signal?:AbortSignal)=>{baseSignal?.throwIfAborted();signal?.throwIfAborted();};
+  const combined=(signal?:AbortSignal)=>baseSignal&&signal?AbortSignal.any([baseSignal,signal]):signal??baseSignal;
   return {
     init_project: tool({
       description:
@@ -107,12 +112,13 @@ export function createHarnessTools(projectId: string) {
       inputSchema: z.object({
         template: z.enum(["static", "vite"]).describe("脚手架类型"),
       }),
-      execute: async ({ template }) => {
-        const root = ensureProjectRoot(projectId);
+      execute: async ({ template }, { abortSignal }) => {
+        active(abortSignal);
+        ensureProjectRoot(projectId);
         const files = template === "static" ? STATIC_TEMPLATE : VITE_TEMPLATE;
         const created: string[] = [];
         for (const [rel, content] of Object.entries(files)) {
-          const abs = path.join(root, rel);
+          const abs = resolveInsideProject(projectId,rel,{allowMissing:true});
           if (fs.existsSync(abs)) continue;
           fs.mkdirSync(path.dirname(abs), { recursive: true });
           fs.writeFileSync(abs, content, "utf8");
@@ -144,7 +150,8 @@ export function createHarnessTools(projectId: string) {
         path: z.string().describe("相对项目根目录的文件路径"),
         content: z.string().describe("完整文件内容"),
       }),
-      execute: async ({ path: p, content }) => {
+      execute: async ({ path: p, content }, { abortSignal }) => {
+        active(abortSignal);
         writeFile(projectId, p, content);
         return { path: p, bytes: Buffer.byteLength(content), message: `已写入 ${p}` };
       },
@@ -159,9 +166,10 @@ export function createHarnessTools(projectId: string) {
         newString: z.string().describe("替换后的内容"),
         replaceAll: z.boolean().optional().describe("是否替换全部匹配"),
       }),
-      execute: async ({ path: p, oldString, newString, replaceAll }) => ({
-        message: editFile(projectId, p, oldString, newString, replaceAll ?? false),
-      }),
+      execute: async ({ path: p, oldString, newString, replaceAll }, { abortSignal }) => {
+        active(abortSignal);
+        return {message: editFile(projectId, p, oldString, newString, replaceAll ?? false)};
+      },
     }),
 
     list_files: tool({
@@ -188,7 +196,7 @@ export function createHarnessTools(projectId: string) {
       inputSchema: z.object({
         path: z.string().describe("相对项目根目录的路径"),
       }),
-      execute: async ({ path: p }) => ({ message: deleteFile(projectId, p) }),
+      execute: async ({ path: p }, { abortSignal }) => {active(abortSignal);return {message: deleteFile(projectId,p)};},
     }),
 
     run_command: tool({
@@ -198,23 +206,20 @@ export function createHarnessTools(projectId: string) {
         command: z.string().describe("要执行的命令"),
         timeoutMs: z.number().optional().describe("超时时间（毫秒）"),
       }),
-      execute: async ({ command, timeoutMs }) => {
-        const result = await runCommand(projectId, command, { timeoutMs });
+      execute: async ({ command, timeoutMs }, { abortSignal }) => {
+        const result = await runCommand(projectId, command, { timeoutMs, signal: combined(abortSignal) });
         return result;
       },
     }),
 
     install_deps: tool({
-      description: "安装项目依赖（自动在 npm / pnpm 之间选择可用的包管理器）。",
+      description: "用平台固定 pnpm 工具链安装项目依赖。",
       inputSchema: z.object({
         packages: z.array(z.string()).optional().describe("要安装的包，留空则安装全部依赖"),
       }),
-      execute: async ({ packages }) => {
-        const cmd =
-          packages && packages.length > 0
-            ? `npm install ${packages.join(" ")}`
-            : "npm install";
-        const result = await runCommand(projectId, cmd, { timeoutMs: 300_000 });
+      execute: async ({ packages }, { abortSignal }) => {
+        const cmd = installDependenciesCommand(packages);
+        const result = await ensureProjectDependencies(projectId, combined(abortSignal), undefined, ".", packages);
         return { command: cmd, ...result };
       },
     }),
@@ -223,8 +228,8 @@ export function createHarnessTools(projectId: string) {
       description:
         "在服务器上启动该项目的服务并分配端口，之后用户可通过 /p/{projectId}/ 访问。",
       inputSchema: z.object({}),
-      execute: async () => {
-        const result = await startService(projectId);
+      execute: async (_input, { abortSignal }) => {
+        const result = await refreshProjectPreview(projectId, combined(abortSignal));
         return {
           ...result,
           previewUrl: `/p/${projectId}/`,
@@ -236,14 +241,14 @@ export function createHarnessTools(projectId: string) {
     stop_service: tool({
       description: "停止该项目的运行服务并释放端口。",
       inputSchema: z.object({}),
-      execute: async () => stopService(projectId),
+      execute: async (_input, {abortSignal}) => {active(abortSignal);return stopService(projectId);},
     }),
 
     restart_service: tool({
       description: "重启该项目的运行服务（代码修改后可调用）。",
       inputSchema: z.object({}),
-      execute: async () => {
-        const result = await restartService(projectId);
+      execute: async (_input, { abortSignal }) => {
+        const result = await refreshProjectPreview(projectId, combined(abortSignal));
         return { ...result, previewUrl: `/p/${projectId}/` };
       },
     }),

@@ -1,6 +1,9 @@
 "use client";
+import type { DiscussionRecord } from "@/lib/generation/discussion-schema";
 
 import { useEffect, useMemo, useRef } from "react";
+import type { GenerationProgress } from "./generation-presentation";
+import { GenerationHealthNotice } from "./generation-health";
 import {
   STAGE_ORDER,
   STAGE_ROLES,
@@ -9,6 +12,11 @@ import {
 } from "@/lib/generation/types";
 
 export interface GenerationView {
+  runId?: string;
+  discussion?: DiscussionRecord | null;
+  progress?: GenerationProgress | null;
+  observedAt?: number;
+  progressUnavailable?: boolean;
   status: string;
   stage: string | null;
   error: string | null;
@@ -23,6 +31,7 @@ interface StageState {
 }
 
 const STAGE_LABEL: Record<GenerationStage, string> = {
+  discuss: "需求讨论",
   scaffold: "SCAFFOLD",
   spec: "SPEC",
   plan: "PLAN",
@@ -76,14 +85,17 @@ export function GenerationTimeline({
   events,
   onCancel,
   onRetry,
+  onClose,
 }: {
   view: GenerationView | null;
   events: GenerationEventPayload[];
   onCancel: () => void;
   onRetry: () => void;
+  /** 完成后回看记录时提供“返回预览” */
+  onClose?: () => void;
 }) {
   const stages = useMemo(() => deriveStages(events), [events]);
-  const runningStage = STAGE_ORDER.find((s) => stages[s].status === "running") ?? null;
+  const runningStage = view?.status === "waiting" ? null : STAGE_ORDER.find((s) => stages[s].status === "running") ?? null;
   const runningRole = runningStage ? STAGE_ROLES[runningStage] : null;
   const status = view?.status ?? "running";
 
@@ -117,6 +129,7 @@ export function GenerationTimeline({
     if (node) node.scrollTop = node.scrollHeight;
   }, [logs.length]);
 
+  if(status==="waiting")return <div className="flex h-full flex-col items-center justify-center gap-4 rounded-2xl border border-indigo-100 bg-white p-8 text-center"><span className="text-xs font-semibold tracking-widest text-indigo-500">LET’S SHAPE YOUR IDEA</span><h2 className="text-xl font-semibold">先把关键想法聊清楚</h2><p className="max-w-sm text-sm leading-7 text-black/55">{view?.discussion?.assessment.summary??"请在对话区选择方案或补充需求，确认后继续生成。"}</p><p className="text-xs text-black/40">任务已暂停 · 等待你的选择 · 尚未开始编写代码</p><button onClick={onCancel} className="action-secondary">取消任务</button></div>;
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-black/10 bg-white">
       <div className="flex flex-none items-center gap-2 border-b border-black/8 px-4 py-2.5">
@@ -145,9 +158,17 @@ export function GenerationTimeline({
               onClick={onRetry}
               className="rounded-lg bg-[#4267ff] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#2f50f0]"
             >
-              从失败阶段重试
+              从当前阶段重试
             </button>
           ) : null}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="rounded-lg border border-black/10 px-3 py-1.5 text-[12px] text-black/60 hover:border-black/25"
+            >
+              返回预览
+            </button>
+          )}
         </div>
       </div>
 
@@ -167,6 +188,8 @@ export function GenerationTimeline({
             已写入的文件会保留，可从失败阶段重试。
           </div>
         ) : null}
+
+        {view && <GenerationHealthNotice view={view} />}
 
         <ul className="space-y-2">
           {STAGE_ORDER.map((stage) => {

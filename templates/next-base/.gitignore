@@ -6,3 +6,12 @@ next-env.d.ts
 *.db-shm
 *.db-wal
 .DS_Store
+
+# 平台运行缓存与独立构建快照不属于应用源码
+.atoms/candidates/
+.atoms/runtime/
+.atoms/dependency-backups/
+.atoms/recovery/
+.atoms/checkpoints/
+
+.atoms/acceptance/

@@ -17,6 +17,22 @@ const TEMPLATE_CONTRACTS: { path: string; must: RegExp[]; forbid: RegExp[] }[] =
   },
 ];
 
+/** 修复阶段禁止改写的脚手架文件：改了会破坏构建环境，且不属于业务代码 */
+const PROTECTED_PATHS = [
+  /^package\.json$/,
+  /^next\.config\.(ts|js|mjs)$/,
+  /^tsconfig\.json$/,
+  /^postcss\.config\.(js|mjs)$/,
+  /^pnpm-lock\.yaml$/,
+  /^\.atoms\//,
+  /^node_modules\//,
+  /^\.next\//,
+];
+
+export function isProtectedPath(relPath: string): boolean {
+  return PROTECTED_PATHS.some((pattern) => pattern.test(relPath));
+}
+
 /** 校验写入内容是否仍然满足模板契约；返回错误说明，通过时返回 null */
 export function checkTemplateContract(relPath: string, content: string): string | null {
   const rule = TEMPLATE_CONTRACTS.find((item) => item.path === relPath);

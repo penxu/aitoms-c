@@ -49,6 +49,18 @@ Nginx 反向代理配置见 [deploy/nginx.conf](app/deploy/nginx.conf)：
 - `/` → Next.js
 - `/p/` → Next.js（保留 `Upgrade` 头以支持用户项目的 WebSocket）
 
+## Docker 一键部署
+
+```bash
+git clone <仓库> atoms && cd atoms
+./scripts/deploy.sh            # 构建镜像 + 启动 + 等待健康检查
+```
+
+产物是「单容器 + `/data` 数据卷」：平台与用户项目子进程共享同一容器网络，SQLite、项目源码、发布快照都落在 `DATA_DIR`（默认 `./data`）。健康检查走 `GET /api/health`。
+
+- 配置项与 `.env` 说明、备份/迁移、域名与 HTTPS、回滚与排障：[docs/deploy-docker.md](docs/deploy-docker.md)
+- CI：`.github/workflows/docker.yml` 在 PR/推送时跑 typecheck、lint、单测、构建，并把镜像推到 GHCR；手动触发可 SSH 到服务器执行 `./scripts/deploy.sh --update`
+
 ## AI 工具集（harness）
 
 | 类别 | 工具 |
@@ -69,3 +81,9 @@ OpenSpec 工作流位于 `openspec/`：
 - `openspec/project.md` — 项目约定
 - `openspec/specs/` — 当前能力规格（source of truth）
 - `openspec/archive/bootstrap-atoms-ai-builder/` — 首次变更的提案、任务与 delta 归档
+
+## 一句话开发与交付
+
+现已增加独立生产版本、发布历史与回滚、可复现部署包以及原框架内的 UI 升级。工作台「交付」页是统一入口。开发预览仍使用 `/p/{id}`，固定生产版本使用 `/s/{id}`；二者的源码、进程及数据库边界见 [发布与交付说明](docs/delivery.md)。
+
+源码导出默认不再包含 `.git`、真实环境变量或数据库。部署包包含 Dockerfile、Compose、锁文件和部署说明；下载包不代表外部服务器已部署。首次生产发布使用空数据库，开发数据保留且不自动迁移。

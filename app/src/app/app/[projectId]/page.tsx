@@ -1,3 +1,5 @@
+import { listFiles } from "@/lib/workspace/files";
+import { getLatestGenerationRun } from "@/lib/db/generation";
 import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
 import { Workspace } from "@/components/workspace/workspace";
@@ -19,7 +21,8 @@ export default async function ProjectPage({
 
   const threadId = getOrCreateMainThread(projectId);
   const messages = listThreadMessages(threadId).map(
-    (m) => ({ id: m.id, role: m.role, parts: m.parts }) as unknown as UIMessage,
+    // 历史数据里可能有 system 角色（早期的生成摘要），统一按 assistant 呈现
+    (m) => ({ id: m.id, role: m.role === "system" ? "assistant" : m.role, parts: m.parts }) as unknown as UIMessage,
   );
 
   return (
@@ -30,6 +33,7 @@ export default async function ProjectPage({
         status: project.status,
         assignedPort: project.assignedPort,
       }}
+      hasExistingWork={messages.length > 0 || listFiles(projectId, 0).length > 0 || Boolean(getLatestGenerationRun(projectId))}
       initialMessages={messages}
       initialQuery={q}
       modelConfigured={isModelConfigured()}

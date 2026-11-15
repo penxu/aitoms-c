@@ -1,17 +1,122 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f8fa;
+  --foreground: #18212f;
+  --surface: #ffffff;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --muted: #eef1f5;
+  --muted-foreground: #526174;
+  --border: #d6dde7;
+  --danger: #b42318;
+  --ring: #2563eb;
+  --radius: 1rem;
+  --content-width: 76rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-danger: var(--danger);
+  --color-ring: var(--ring);
 }
 
+* { box-sizing: border-box; }
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+  line-height: 1.6;
+  overflow-wrap: break-word;
 }
+button, input, textarea, select { font: inherit; }
+button, a, input, textarea, select { touch-action: manipulation; }
+img, video, canvas, svg { max-width: 100%; }
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+::selection { background: var(--primary); color: var(--primary-foreground); }
+
+.app-shell { min-height: 100dvh; }
+.app-shell-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  padding: 1.25rem max(1.25rem, calc((100% - var(--content-width)) / 2));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.app-shell-brand { font-weight: 750; letter-spacing: -.025em; font-size: 1.125rem; }
+.app-shell-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1.25rem; font-size: .875rem; }
+.app-shell-navigation a { color: var(--muted-foreground); text-decoration: none; padding-block: .5rem; }
+.app-shell-navigation a:hover, .app-shell-navigation [aria-current="page"] { color: var(--primary); }
+.app-shell-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-inline-start: auto; }
+.app-shell-main { width: min(100%, var(--content-width)); margin-inline: auto; padding: clamp(1.5rem, 4vw, 4rem) 1.25rem; min-width: 0; }
+.app-shell-footer { padding: 1.5rem; text-align: center; color: var(--muted-foreground); border-top: 1px solid var(--border); font-size: .875rem; }
+.app-shell[data-variant="admin"] { --content-width: 90rem; }
+.app-shell[data-variant="form"] { --content-width: 48rem; }
+.app-shell[data-variant="game"] { --content-width: 64rem; --primary: #6d28d9; }
+.skip-link { position: fixed; z-index: 100; top: 1rem; left: 1rem; transform: translateY(-200%); padding: .75rem 1rem; background: var(--foreground); color: var(--surface); border-radius: .5rem; }
+.skip-link:focus { transform: none; }
+
+.page-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem; margin-bottom: 2rem; }
+.page-header-copy { flex: 1 1 16rem; min-width: 0; }
+.page-eyebrow { margin: 0 0 .5rem; font-size: .75rem; font-weight: 650; letter-spacing: .12em; color: var(--primary); }
+.page-title { margin: 0; font-size: clamp(1.875rem, 4vw, 3rem); font-weight: 750; line-height: 1.15; letter-spacing: -.045em; text-wrap: balance; }
+.page-description { margin: .875rem 0 0; max-width: 62ch; color: var(--muted-foreground); font-size: .9375rem; }
+.page-header-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1rem; }
+.metric-card { padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: 0 2px 8px #18212f04; min-width: 0; }
+.metric-card dl { margin: 0; }
+.metric-label { font-size: .875rem; color: var(--muted-foreground); }
+.metric-value { margin: .5rem 0 0; font-size: clamp(1.75rem, 3vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.metric-detail { margin: .75rem 0 0; font-size: .8125rem; color: var(--muted-foreground); }
+.empty-state { display: grid; justify-items: center; padding: clamp(2rem, 6vw, 5rem) 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); text-align: center; }
+.empty-state-icon { padding: 1rem; margin-bottom: 1rem; border-radius: var(--radius); background: var(--muted); color: var(--muted-foreground); }
+.empty-state-title { margin: 0; font-size: 1.125rem; font-weight: 650; }
+.empty-state-action { margin-top: 1.5rem; }
+.field-grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
+.form-field { display: grid; gap: .5rem; min-width: 0; }
+.form-label { font-size: .875rem; font-weight: 600; }
+.form-hint { margin: 0; font-size: .8125rem; color: var(--muted-foreground); }
+.form-error { margin: 0; font-size: .8125rem; color: var(--danger); }
+[aria-invalid="true"] { border-color: var(--danger); }
+.table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+
+@media (min-width: 48rem) { .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 36rem) {
+  .app-shell-navigation { order: 3; flex-basis: 100%; }
+  .page-header-actions { width: 100%; }
+  .page-header-actions > * { flex-grow: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* 原生控件也继承字段外观，避免模型使用textarea/select时出现无边界的空白区域。 */
+.form-field :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), textarea, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  padding: .625rem .875rem;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.form-field textarea { min-height: 8rem; resize: vertical; line-height: 1.6; }
+.form-field :where(input, textarea, select):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.form-field :where(input, textarea, select)[aria-invalid="true"] { border-color: var(--danger); }
+.form-field :where(input, textarea, select):disabled { opacity: .6; cursor: not-allowed; }

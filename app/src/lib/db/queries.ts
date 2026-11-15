@@ -51,6 +51,15 @@ export function updateProjectStatus(
     .run();
 }
 
+/** 收藏 / 取消收藏项目 */
+export function setProjectFavorite(id: string, favorited: boolean): Project | undefined {
+  db.update(projects)
+    .set({ favorited, updatedAt: new Date() })
+    .where(eq(projects.id, id))
+    .run();
+  return getProject(id);
+}
+
 // ============ Threads ============
 
 /** 每个项目一条主线程；不存在则创建 */

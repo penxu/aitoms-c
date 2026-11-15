@@ -2,11 +2,25 @@ import { NextResponse } from "next/server";
 import { ensureProjectRoot } from "@/lib/workspace/paths";
 import { createProject, getProject, listProjects, updateProjectStatus } from "@/lib/db/queries";
 import { getOrCreateMainThread } from "@/lib/db/queries";
+import { getRuntimePort } from "@/lib/runner";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json({ projects: listProjects() });
+  try {
+    // running 表示开发预览当前可访问，项目中心用它在卡片里挂实时预览
+    const projects = listProjects().map((project) => ({
+      ...project,
+      running: getRuntimePort(project.id) !== null,
+    }));
+    return NextResponse.json({ projects });
+  } catch (error) {
+    console.error("[projects] 列表读取失败：", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? `${error.name}: ${error.message}` : String(error) },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: Request) {

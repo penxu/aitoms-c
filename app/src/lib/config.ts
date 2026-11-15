@@ -6,8 +6,19 @@ export const config = {
   workspaceRoot: process.env.WORKSPACE_ROOT
     ? path.resolve(process.env.WORKSPACE_ROOT)
     : path.resolve(process.cwd(), "..", "data", "projects"),
+  workspaceExecutionBackend: (process.env.WORKSPACE_EXECUTION_BACKEND ?? "auto") as "auto" | "native" | "docker",
+  workspaceContainerImage: process.env.WORKSPACE_CONTAINER_IMAGE ?? "node:22-bookworm-slim",
+  chromiumPath: process.env.CHROMIUM_PATH ?? "",
+  browserChannel: process.env.BROWSER_CHANNEL ?? (process.platform === "darwin" ? "chrome" : ""),
+  acceptanceTimeoutMs: Number(process.env.ACCEPTANCE_TIMEOUT_MS ?? 300_000),
   portRangeMin: Number(process.env.PORT_RANGE_MIN ?? 4000),
   portRangeMax: Number(process.env.PORT_RANGE_MAX ?? 4999),
+  /** 单轮对话等待上限，避免上游不返回时永久占用。 */
+  generationStageTimeoutMs: Number(process.env.GENERATION_STAGE_TIMEOUT_MS ?? 900_000),
+  generationModelTimeoutMs: Number(process.env.GENERATION_MODEL_TIMEOUT_MS ?? 300_000),
+  modelChunkTimeoutMs: Number(process.env.MODEL_CHUNK_TIMEOUT_MS ?? 60_000),
+  chatTimeoutMs: Number(process.env.CHAT_TIMEOUT_MS ?? 300_000),
+  modelFirstChunkTimeoutMs: Number(process.env.MODEL_FIRST_CHUNK_TIMEOUT_MS ?? 60_000),
   chatModel: process.env.CHAT_MODEL ?? "gpt-4o",
   /** 各生成阶段所用模型（可按用途分别配置） */
   specModel: process.env.SPEC_MODEL ?? "gpt-4o",

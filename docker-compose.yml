@@ -1,0 +1,48 @@
+# Atoms 平台：单容器 + 本地数据卷
+#
+# 一键启动：./scripts/deploy.sh
+# 手动启动：cp .env.docker.example .env && 填写 OPENAI_API_KEY && docker compose up -d --build
+#
+# 注意：平台会为用户项目启动 next dev / next start 子进程（4000–4999 端口），
+# 这些端口只在容器内使用，由 server.mjs 通过 /p/、/s/ 子路径代理，无需对外暴露。
+
+services:
+  atoms:
+    image: ${ATOMS_IMAGE:-atoms-platform:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atoms
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      WORKSPACE_EXECUTION_BACKEND: native
+      CHROMIUM_PATH: /usr/bin/chromium
+      PORT: "3000"
+      WORKSPACE_ROOT: /data/projects
+      DATABASE_PATH: /data/atoms.db
+      TEMPLATE_ROOT: /templates
+      TEMPLATE_CACHE_ROOT: /data/.template-cache
+      PNPM_STORE_DIR: /data/.pnpm-store
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - "${DATA_DIR:-./data}:/data"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # 宿主内核与运行时必须支持非特权用户命名空间；入口脚本会预检并拒绝不安全降级。
+    # 不自动挂 Docker socket，也不启用 privileged / SYS_ADMIN / seccomp=unconfined。
+    stop_grace_period: 20s
