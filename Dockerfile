@@ -54,6 +54,8 @@ COPY --from=builder --chown=node:node /app ./
 COPY --chown=node:node templates /templates
 
 COPY --chown=root:root --chmod=755 deploy/entrypoint.sh /usr/local/bin/atoms-entrypoint
+# 只读部署诊断，与本地 npm run diagnose:deployment 使用相同相对路径。
+COPY --chown=root:root --chmod=644 scripts/diagnose-deployment.mjs /scripts/diagnose-deployment.mjs
 
 EXPOSE 3000
 

@@ -14,6 +14,7 @@ data
 # 依赖与构建产物在镜像内重新安装/构建
 **/node_modules
 **/.next
+**/.next-*
 **/out
 **/dist
 **/*.tsbuildinfo

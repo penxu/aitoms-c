@@ -31,3 +31,9 @@ test("system 角色被拒时提示刷新页面", () => {
     /刷新页面/,
   );
 });
+
+test('请求头和Docker权限问题不误报为业务代码或通用模型故障',()=>{
+ assert.match(describeModelError(new Error('Cannot convert argument to a ByteString')),/OPENAI_API_KEY/);
+ const runtime=describeModelError(new Error('Docker 隔离不可用：permission denied while trying to connect'));
+ assert.match(runtime,/运行用户/);assert.doesNotMatch(runtime,/模型调用失败/);
+});

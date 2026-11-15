@@ -1,3 +1,4 @@
+import { dockerCliEnvironment } from "./docker-environment.ts";
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -11,7 +12,7 @@ const imageRuntimes=new Map<string,ExecutionRuntime>();
 function workspaceLabel(root:string):string {return createHash('sha256').update(fs.realpathSync(root)).digest('hex');}
 function containerName(root:string,cleanupId:string):string {return `atoms-${workspaceLabel(root).slice(0,16)}-${path.basename(cleanupId,'.cid')}`;}
 function dockerEnvironment(): NodeJS.ProcessEnv {
-  return {PATH:'/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin',HOME:os.homedir(),NODE_ENV:'production'};
+  return dockerCliEnvironment();
 }
 const DEFAULT_BASE_IMAGE='node:22-bookworm-slim';
 const TOOLCHAIN_DOCKERFILE=`FROM ${DEFAULT_BASE_IMAGE}

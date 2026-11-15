@@ -33,3 +33,13 @@ test("各阶段复用相同设计及业务交付约束", () => {
   assert.match(BUILD_SYSTEM_PROMPT, /ATOMS_DATA_DIR/);
   assert.match(BUILD_SYSTEM_PROMPT, /force-dynamic/);
 });
+
+test('中文占位密钥与控制字符在模型调用前拦截且不泄露值',async()=>{
+ const {getModelConfigurationError}=await import('./model-configuration.ts');
+ for(const key of ['sk-把你的Key填这里','sk-line\nbreak','sk-with space','sk-é']){
+  const error=getModelConfigurationError({OPENAI_API_KEY:key});
+  assert.equal(error?.code,'MODEL_CONFIGURATION_INVALID');assert.match(error?.error??'',/OPENAI_API_KEY/);assert.equal(error?.error.includes(key),false);
+ }
+ assert.equal(getModelConfigurationError({OPENAI_API_KEY:' valid-local-key '}),null);
+ assert.throws(()=>new Headers({Authorization:'Bearer sk-把你的Key填这里'}),/ByteString/);
+});

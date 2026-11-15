@@ -8,7 +8,8 @@
     "start": "NODE_ENV=production node server.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test src/lib/generation/*.test.ts src/lib/packages/*.test.ts src/lib/releases/*.test.ts src/lib/ai/*.test.ts src/lib/projects/*.test.ts src/components/workspace/*.test.ts"
+    "test:unit": "node --experimental-strip-types --test src/lib/generation/*.test.ts src/lib/packages/*.test.ts src/lib/releases/*.test.ts src/lib/ai/*.test.ts src/lib/projects/*.test.ts src/components/workspace/*.test.ts",
+    "diagnose:deployment": "node --experimental-strip-types ../scripts/diagnose-deployment.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.115",

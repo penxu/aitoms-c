@@ -116,3 +116,25 @@ auth_basic_user_file /etc/nginx/atoms.htpasswd;   # htpasswd -c 生成
 - 或用云安全组 / 防火墙限制来源 IP，只对内网开放。
 
 平台目前没有内置账号体系，单机部署也不承诺高可用；数据一致性以 SQLite + 本地卷为准。
+
+## 宝塔 / 1Panel：页面能打开但创建应用失败
+
+页面健康检查通过只说明平台 HTTP 与数据库可用，不等于模型凭据、构建隔离或浏览器工具链已可用。升级包含本次修复的代码/镜像后，以**平台实际运行用户**执行只读诊断：
+
+```bash
+# Node / PM2 项目：先进入仓库 app 目录
+npm run diagnose:deployment
+
+# 仓库自带容器（名称按实际调整，镜像中平台运行用户为 node）
+docker exec --user node atoms sh -lc 'cd /app && npm run diagnose:deployment'
+```
+
+输出不包含 API Key 或 Docker 连接地址，只报告变量名、运行 UID/GID、隔离是否可用和配置错误分类。返回非零代表模型或选定执行后端未通过预检；`ready` 只代表这些检查通过，完整构建与发布仍需另行验收。
+
+- **ByteString**：优先查看 `model` 检查。模型密钥不能包含中文占位、换行、内部空格。请替换为服务商真实密钥，不能通过 URL/Base64 编码“修复”密钥。修复面板的实际进程环境后重启/重新创建服务；仅在终端修改环境不会自动更新已运行的 PM2/容器。
+- **`/root/.docker/config.json: permission denied`**：检查平台 UID 与 HOME 是否匹配。新版可信 Docker CLI 使用真实 UID 的用户目录；显式 `DOCKER_CONFIG` 仍必须指向该用户可读的配置目录。
+- **Docker socket permission denied**：平台运行用户没有 daemon 访问权限，或配置的 rootless/context 端点不可用。需要由管理员针对实际运行身份配置 daemon 访问，并重启进程使身份/组生效。不要把 `chmod 777 docker.sock`、全容器 root 或关闭隔离作为通用修复。
+- **面板容器里执行 Docker**：即使 socket 可连，兄弟容器挂载的工程、临时数据和 pnpm 路径还必须在宿主机存在且保持一致，代理也需要匹配网络。自带 Compose 使用 native 隔离，不是 socket 挂载方案。请提供脱敏的 user/environment/volumes 配置后再确定部署改法。
+- **native 用户命名空间被禁用**：自带容器会拒绝不安全降级。应使用支持该隔离的运行时，或在宿主机运行 Node/PM2 平台进程，并配置可用的 native/Docker 后端；改环境变量并不能自动获得权限。
+
+生成早期失败不会丢失 `generation_runs.requirement` 与已确认讨论答案。修复平台配置后使用原任务的阶段重试；缺少 SPEC 不表示应该把故障日志重新生成成一款诊断工具。已经误写的工程需要先保留源码，再按原始需求明确恢复，不能自动删除。

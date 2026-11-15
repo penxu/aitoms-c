@@ -6,6 +6,8 @@ export function describeModelError(error: unknown): string {
   const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
   const text = raw.toLowerCase();
 
+  if (/bytestring/.test(text)) return "模型请求头配置无效：请检查 OPENAI_API_KEY 是否含中文占位内容或控制字符，替换为服务商的真实密钥后重启；不要编码密钥，也无需改写业务应用。";
+  if (/docker/.test(text) && /permission denied|eacces/.test(text)) return "工程执行环境权限不足：平台运行用户无法读取 Docker 配置或连接 Docker daemon。请检查面板运行用户、Docker 连接配置和 socket 访问权限；修复前无法安装、构建或预览，不能通过重写应用解决。";
   if (/timeout|timed out/.test(text)) {
     return "模型或工具等待超时，本轮已停止。可以继续原任务，无需重新生成工程。";
   }

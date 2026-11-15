@@ -1,3 +1,4 @@
+import { getModelConfigurationError } from "@/lib/generation/model-configuration";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import { config } from "@/lib/config";
@@ -8,7 +9,7 @@ export type ModelKind = "chat" | "spec" | "plan" | "build" | "repair";
 /** 模块级单例 provider，避免每次请求重复创建 */
 const provider = createOpenAI({
   baseURL: process.env.OPENAI_BASE_URL,
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY?.trim(),
 });
 
 const MODEL_NAMES: Record<ModelKind, string> = {
@@ -26,6 +27,5 @@ export function getModel(kind: ModelKind): LanguageModel {
 
 /** 是否配置了真实模型：测试桩的 key 为 stub，不能进行对话与工具调用 */
 export function isModelConfigured(): boolean {
-  const key = process.env.OPENAI_API_KEY;
-  return Boolean(key) && key !== "stub";
+  return getModelConfigurationError() === null;
 }
