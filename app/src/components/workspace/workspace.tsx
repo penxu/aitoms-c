@@ -4,7 +4,7 @@ import { canStartInitialGeneration, shouldShowGenerationTimeline, publicGenerati
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
-import { Monitor, Smartphone, Tablet, Rocket, Code2, Eye, RefreshCw, Download, ChevronDown, ChevronRight, FileCode2, ScrollText, X } from "lucide-react";
+import { Monitor, Smartphone, Tablet, Rocket, Code2, Eye, RefreshCw, Download, ChevronDown, ChevronRight, FileCode2, ScrollText, X, LoaderCircle } from "lucide-react";
 import { ReleasePanel } from "./release-panel";
 import { downloadProject } from "./download-project";
 import { ChatPanel } from "./chat-panel";
@@ -62,6 +62,9 @@ export function Workspace({
   const [previewKey, setPreviewKey] = useState(0);
   const [running, setRunning] = useState(project.status === "running");
   const [busy, setBusy] = useState(false);
+  /** 记录已完成加载的预览帧标识；标识变化即视为需要重新等待 next dev 编译 */
+  const [loadedFrameKey, setLoadedFrameKey] = useState<string | null>(null);
+  const previewFrameKey = `${previewKey}:${running}`;
   const [tab, setTab] = useState<"preview" | "code" | "release">("preview");
   const [mobilePane, setMobilePane] = useState<"files" | "chat" | "preview">("chat");
   const [genView, setGenView] = useState<GenerationView | null>(null);
@@ -549,13 +552,25 @@ export function Workspace({
                     onClose={recordView ? () => setRecordView(false) : undefined}
                   />
                 ) : running ? (
-                  <iframe
-                    key={previewKey}
-                    src={`/p/${project.id}/`}
-                    style={{ maxWidth: device === "mobile" ? 375 : device === "tablet" ? 768 : "100%", display: "block", marginInline: "auto" }}
-                    className="h-full w-full rounded-2xl border border-black/8 bg-white shadow-[0_1px_3px_rgba(12,12,12,0.04)]"
-                    title="项目预览"
-                  />
+                  <div className="relative h-full">
+                    <iframe
+                      key={previewFrameKey}
+                      src={`/p/${project.id}/`}
+                      onLoad={() => setLoadedFrameKey(previewFrameKey)}
+                      style={{ maxWidth: device === "mobile" ? 375 : device === "tablet" ? 768 : "100%", display: "block", marginInline: "auto" }}
+                      className="h-full w-full rounded-2xl border border-black/8 bg-white shadow-[0_1px_3px_rgba(12,12,12,0.04)]"
+                      title="项目预览"
+                    />
+                    {loadedFrameKey !== previewFrameKey && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-white/95">
+                        <div className="text-center">
+                          <LoaderCircle className="mx-auto animate-spin text-[#4267ff]" size={22} />
+                          <p className="mt-3 text-[13.5px] font-medium">正在准备页面…</p>
+                          <p className="mt-1 text-[12px] text-black/50">首次访问需要编译，通常 10–40 秒</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center">
                     <div className="max-w-sm rounded-3xl border border-black/8 bg-white p-8 text-center shadow-[0_1px_3px_rgba(12,12,12,0.04)]">

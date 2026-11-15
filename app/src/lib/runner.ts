@@ -1,4 +1,4 @@
-import { waitForPreviewStart } from "./workspace/runtime-start";
+import { waitForPreviewSocket, waitForPreviewStart } from "./workspace/runtime-start";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
@@ -269,7 +269,14 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
       const pkg = JSON.parse(fs.readFileSync(path.join(cwd, "package.json"), "utf8"));
       nextProject = Boolean(pkg.dependencies?.next || pkg.devDependencies?.next);
     } catch { /* 静态项目 */ }
-    await waitForPreviewStart(`http://127.0.0.1:${port}${nextProject ? `/p/${projectId}` : ""}/`, () => signal.aborted ? "服务启动已停止" : startupFailure);
+    const startupError = () => signal.aborted ? "服务启动已停止" : startupFailure;
+    if (config.generationVerificationMode === "full") {
+      // 生产产物：必须真的响应页面，才能确认构建结果可用。
+      await waitForPreviewStart(`http://127.0.0.1:${port}${nextProject ? `/p/${projectId}` : ""}/`, startupError);
+    } else {
+      // 开发预览：只等端口监听。首次请求会触发编译，不能把它算进启动等待。
+      await waitForPreviewSocket(port, startupError, signal);
+    }
     signal.throwIfAborted();
     return { port, pid: identity.pid, command };
   } catch (error) {

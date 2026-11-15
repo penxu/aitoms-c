@@ -137,9 +137,58 @@ function normalizeProjectSources(ctx: StageContext): void {
   }
 }
 
+/**
+ * 开发预览：源码就是产物，不建快照、不起临时验收服务、不跑生产构建。
+ * 只做一次类型检查，然后启动唯一的 next dev；页面编译交给浏览器首次访问，
+ * 前端用加载态覆盖等待，临时首页验收不再阻断预览。
+ */
+async function startDevelopmentPreview(ctx: StageContext, dataDir: string): Promise<AttemptResult> {
+  normalizeProjectSources(ctx);
+  const imports = checkImportClosure(projectRoot(ctx.projectId));
+  if (imports.length) return { status: "failed", log: `[imports]\n${imports.join("\n")}` };
+
+  const checked = await withBuildSlot(async (): Promise<AttemptResult> => {
+    ctx.log("info", "执行 pnpm exec tsc --noEmit");
+    const tsc = await runCommand(ctx.projectId, `${pnpmShellCommand()} exec tsc --noEmit`, {
+      cwd: ".",
+      timeoutMs: BUILD_TIMEOUT_MS,
+      signal: ctx.signal,
+      env: { ATOMS_DATA_DIR: dataDir, DATABASE_PATH: path.join(dataDir, "app.db") },
+    });
+    if (tsc.aborted) return { status: "aborted" };
+    if (tsc.exitCode !== 0) {
+      return { status: "failed", log: `[tsc]\n${errorLogOf(tsc.stdout, tsc.stderr)}` };
+    }
+    return { status: "ok" };
+  });
+  if (checked.status !== "ok") return checked;
+
+  ctx.log("info", "类型检查通过，启动开发预览；页面首次访问时在后台编译，无需等待");
+  try {
+    // runner 内部只等端口监听，不会主动请求页面；编译由浏览器首次访问触发。
+    await restartService(ctx.projectId, {
+      sourceDir: ".",
+      validate: async (_result, serviceSignal) => {
+        AbortSignal.any([ctx.signal, serviceSignal]).throwIfAborted();
+      },
+    });
+  } catch (error) {
+    if (ctx.signal.aborted) return { status: "aborted" };
+    return { status: "failed", log: `[start]\n${error instanceof Error ? error.message : String(error)}` };
+  }
+
+  ctx.log("info", "开发预览已启动，页面编译完成后会自动显示");
+  return { status: "ok", acceptance: [] };
+}
+
 /** 构建并启动服务，最后探活 /api/health */
 async function buildAndStart(ctx: StageContext, dataDir: string): Promise<AttemptResult> {
   ctx.emit({ type: "stage", stage: "verify", status: "running" });
+
+  // 默认的开发预览模式：一条启动链路，不再「先起临时服务验收、再起正式预览」。
+  if (config.generationVerificationMode !== "full") {
+    return startDevelopmentPreview(ctx, dataDir);
+  }
 
   let candidate: { relativeRoot: string; absoluteRoot: string } | undefined;
   const compiled = await withBuildSlot(async (): Promise<AttemptResult> => {
@@ -421,7 +470,7 @@ async function verifyProject(ctx: StageContext, dataDir: string): Promise<StageR
         developmentPreview: config.generationVerificationMode !== "full",
       });
       writeFile(ctx.projectId, ".atoms/VERIFICATION.json", JSON.stringify(report, null, 2));
-      ctx.log("info", report.businessVerified ? "计划内业务验收与技术检查均已通过，详见 .atoms/VERIFICATION.json" : report.previewMode === "development" ? "开发预览已启动并通过首页检查；未执行生产构建，详见 .atoms/VERIFICATION.json" : "技术和页面检查已通过；完整业务流程尚未验收，详见 .atoms/VERIFICATION.json");
+      ctx.log("info", report.businessVerified ? "计划内业务验收与技术检查均已通过，详见 .atoms/VERIFICATION.json" : report.previewMode === "development" ? "开发预览已启动：仅确认端口监听，页面在浏览器首次访问时编译；未执行生产构建与业务验收，详见 .atoms/VERIFICATION.json" : "技术和页面检查已通过；完整业务流程尚未验收，详见 .atoms/VERIFICATION.json");
       return { ok: true };
     }
 

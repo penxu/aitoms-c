@@ -19,13 +19,13 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
   const identities = new Map<number, ProcessIdentity>();
   const children = new Map<number, EventEmitter>();
   const rows = new Map<string, { pid: number | null; port: number; status: string; startedAt: Date }>();
-  const signals: number[] = []; let spawns = 0; let cleanups = 0; let runtimeEnv: Record<string,string> = {};
+  const signals: number[] = []; let spawns = 0; let cleanups = 0;let httpChecks=0,socketChecks=0; let runtimeEnv: Record<string,string> = {};
   const context = { exports: {}, globalThis: {}, setTimeout, Promise, process: { kill(pid: number) {
     signals.push(pid); const actual = Math.abs(pid); identities.delete(actual); queueMicrotask(() => children.get(actual)?.emit('exit', 0));
   } } };
   const imports: Record<string, unknown> = {
-    './workspace/runtime-start': { waitForPreviewStart: async (_url: string, failure: () => string | null) => {
-      if (options.ready) await options.ready(); if (options.fail) throw Error('startup failed');
+    './workspace/runtime-start': { waitForPreviewSocket:async(_port:number,failure:()=>string|null)=>{socketChecks++;if(options.ready)await options.ready();if(options.fail)throw Error('startup failed');const error=failure();if(error)throw Error(error);}, waitForPreviewStart: async (_url: string, failure: () => string | null) => {
+      httpChecks++;if (options.ready) await options.ready(); if (options.fail) throw Error('startup failed');
       const error = failure(); if (error) throw Error(error);
     } },
     'node:child_process': { spawn: (_command: string, _args: string[], options: { cwd: string }) => {
@@ -64,7 +64,7 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
     pinServiceToSnapshot: (id: string, createSnapshot: () => Promise<{relativeRoot:string}>) => Promise<unknown>;
     stopService: (id: string) => unknown; cleanupOrphans: () => string[];
   };
-  return { api, db, rows, identities, signals, context, children, spawns: () => spawns, cleanups: () => cleanups, runtimeEnv: () => runtimeEnv };
+  return { api, db, rows, identities, signals, context, children, spawns: () => spawns, cleanups: () => cleanups, runtimeEnv: () => runtimeEnv,httpChecks:()=>httpChecks,socketChecks:()=>socketChecks };
 }
 
 test('runner并发start仅创建一个进程，启动失败释放预约端口并清理状态', async () => {
@@ -221,6 +221,6 @@ test('Docker CLI退出后恢复仍存活容器，停止按容器身份清理且�
  const f=fixture({containerAlive:true});try{const service=await f.api.startService('a');(f.context.globalThis as {__atomsRuntimes:Map<string,unknown>}).__atomsRuntimes.clear();f.identities.delete(service.pid);assert.equal(f.api.getRuntimePort('a'),service.port);assert.deepEqual(Array.from(f.api.cleanupOrphans()),[]);f.api.stopService('a');assert.equal(f.cleanups(),1);assert.deepEqual(f.signals,[]);}finally{f.db.close();}
 });
 
-test('full模式已构建Next候选启动生产产物',async()=>{const f=fixture({nextBuild:true,mode:'full'});try{const service=await f.api.startService('a');assert.match((service as unknown as {command:string}).command,/run start/);assert.equal(f.runtimeEnv().NODE_ENV,'production');f.api.stopService('a');}finally{f.db.close();}});
+test('full模式已构建Next候选启动生产产物',async()=>{const f=fixture({nextBuild:true,mode:'full'});try{const service=await f.api.startService('a');assert.match((service as unknown as {command:string}).command,/run start/);assert.equal(f.runtimeEnv().NODE_ENV,'production');assert.equal(f.httpChecks(),1);assert.equal(f.socketChecks(),0);f.api.stopService('a');}finally{f.db.close();}});
 
-test('默认Next预览即使有旧BUILD_ID也启动dev和development环境',async()=>{const f=fixture({nextBuild:true});try{const service=await f.api.startService('a');assert.match((service as unknown as {command:string}).command,/run dev --webpack/);assert.equal(f.runtimeEnv().NODE_ENV,'development');f.api.stopService('a');}finally{f.db.close();}});
+test('默认Next预览即使有旧BUILD_ID也启动dev和development环境',async()=>{const f=fixture({nextBuild:true});try{const service=await f.api.startService('a');assert.match((service as unknown as {command:string}).command,/run dev --webpack/);assert.equal(f.runtimeEnv().NODE_ENV,'development');assert.equal(f.httpChecks(),0);assert.equal(f.socketChecks(),1);f.api.stopService('a');}finally{f.db.close();}});

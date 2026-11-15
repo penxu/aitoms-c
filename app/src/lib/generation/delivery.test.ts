@@ -30,6 +30,9 @@ test('开发预览报告不能声称生产构建通过',async()=>{
  const report=createVerificationReport({runId:'dev',sourceHash:'abc',spec:'',developmentPreview:true});
  assert.equal(report.checked.find(item=>item.id==='build')?.status,'skipped');
  assert.equal(report.previewMode,'development');assert.equal(report.businessVerified,false);
+ assert.equal(report.checked.find(item=>item.id==='health')?.status,'skipped');
+ assert.equal(report.status,'preview-started');
+ assert.ok(report.pendingManual.some(item=>item.includes('首页')));
  assert.ok(report.pendingManual.some(item=>item.includes('生产构建')));
 });
 test("各阶段复用相同设计及业务交付约束", () => {

@@ -12,9 +12,9 @@ const require = nodeModule.createRequire(import.meta.url);
 const { z } = require("zod");
 const source = fs.readFileSync(new URL("./stages/verify.ts", import.meta.url), "utf8");
 
-for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: false, mode:'full',homeTimeout:false }, { cached: false, blocked: false, mode:'full',homeTimeout:false }, { cached: false, blocked: true, mode:'full',homeTimeout:false },{cached:false,blocked:false,mode:'preview',homeTimeout:false},{cached:false,blocked:false,mode:'preview',homeTimeout:true}]) test(`VERIFY ${mode} ${cached ? "缓存" : "安装"}${homeTimeout?"首页超时不改写代码":blocked ? "识别外部拦截且不重复修复" : "与构建隔离数据并保存真实报告"}`, async () => {
+for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: false, mode:'full',homeTimeout:false }, { cached: false, blocked: false, mode:'full',homeTimeout:false }, { cached: false, blocked: true, mode:'full',homeTimeout:false },{cached:false,blocked:false,mode:'preview',homeTimeout:false},{cached:false,blocked:false,mode:'full',homeTimeout:true}]) test(`VERIFY ${mode} ${cached ? "缓存" : "安装"}${homeTimeout?"首页超时不改写代码":blocked ? "识别外部拦截且不重复修复" : "与构建隔离数据并保存真实报告"}`, async () => {
   const commands: { command: string; env?: Record<string, string> }[] = [];
-  let inBuildSlot = false;const logs:string[]=[];let candidateCalls=0;
+  let inBuildSlot = false;const logs:string[]=[];let candidateCalls=0,healthCalls=0,managedStarts=0;
   let report: ReturnType<typeof createVerificationReport> | undefined;
   const js = stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm, "").replace(/^export \{[^\n]*\n/gm, "").replace(/^export /gm, "");
   const context = {
@@ -33,7 +33,7 @@ for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: fa
       if (blocked && command.includes(" build --webpack")) return { exitCode: 1, stdout: "build failed", stderr: "SAFE_DELETE_BULK_CONFIRM_REQUIRED", aborted: false };
       return { exitCode: 0, stdout: "", stderr: "", aborted: false };
     },
-    getRuntimePort: () => 4000, restartService: async (_id:string,options:{validate:(v:{port:number},signal:AbortSignal)=>Promise<void>}) => {await options.validate({port:4000},new AbortController().signal)}, waitForHealth: async () => true,
+    getRuntimePort: () => 4000, restartService: async (_id:string,options:{validate:(v:{port:number},signal:AbortSignal)=>Promise<void>}) => {managedStarts++;await options.validate({port:4000},new AbortController().signal)}, waitForHealth: async () => {healthCalls++;return true;},
     readFile: () => "## 验收清单\n- 保存并刷新查询\n## 外部依赖\n- 无",
     resolveInsideProject: (_id: string, rel: string) => path.join("/unused/project", rel),
     projectRoot: () => "/unused/project", computeProjectHash: () => "source-hash",
@@ -54,6 +54,8 @@ for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: fa
   }
   assert.equal(result.ok, true);
   if(mode==='preview'){
+    assert.equal(candidateCalls,0,'默认不能启动临时验收服务');assert.equal(healthCalls,0,'默认不能请求健康接口');assert.equal(managedStarts,1,'只启动一次持久开发服务');
+    assert.equal(report?.checked.find(item=>item.id==='health')?.status,'skipped');
     assert.equal(commands.some(item=>item.command.includes(' build')),false,'dev预览不应执行生产构建');
     assert.equal(report?.checked.find(item=>item.id==='build')?.status,'skipped');
     assert.equal(report?.previewMode,'development');return;
