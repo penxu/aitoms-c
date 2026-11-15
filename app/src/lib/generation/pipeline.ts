@@ -209,9 +209,10 @@ async function executeRun(run: GenerationRunRow, signal: AbortSignal): Promise<v
 
     if (stage === "plan" && result.plan) plan = result.plan;
 
-    // 每阶段成功提交一次，保证产物可追溯、可续跑
+    // 规格、计划、源码和文件 checkpoint 已持久化；Git 同样依赖隔离环境，
+    // 延后到实际验证成功再提交，避免 Docker 初始化阻塞代码产出。
     try {
-      if(stage!=="discuss") await commitAll(projectId, `feat(gen): ${stage}`);
+      if(stage==="verify") await commitAll(projectId, "feat(gen): 完成生成与验证");
     } catch (error) {
       ctx.log("warn", `阶段提交失败（不影响继续生成）：${error instanceof Error ? error.message : String(error)}`);
     }

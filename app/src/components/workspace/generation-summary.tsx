@@ -8,6 +8,7 @@ import {
   stageProgress,
   stageStates,
   writtenFiles,
+  hasGeneratedCode,
   type StudioEvent,
 } from "./generation-presentation";
 import { GenerationHealthNotice } from "./generation-health";
@@ -31,8 +32,9 @@ export function GenerationSummary({ view, events, onOpenProcess, onCancel, onRet
 
   const running = view.status === "running";
   const failed = ["failed", "interrupted", "cancelled"].includes(view.status);
-  const stages = stageStates(events);
-  const progress = stageProgress(events);
+  const codeGenerated = hasGeneratedCode(view);
+  const stages = stageStates(events, view.stage);
+  const progress = stageProgress(events, view.stage);
   const activity = running ? currentActivity(events, view.stage) : null;
   const plan = latestPlan(events);
   const files = writtenFiles(events);
@@ -44,8 +46,8 @@ export function GenerationSummary({ view, events, onOpenProcess, onCancel, onRet
       <div className="summary-heading">
         <span className="studio-avatar"><Sparkles size={15} /></span>
         <div className="summary-heading-text">
-          <strong>{running ? "正在把想法变成应用" : failed ? "这一步需要处理" : "应用已完成构建"}</strong>
-          <span>{running ? "以下是真实执行进度" : failed ? "文件与执行记录已保留，可从失败阶段重试" : "可以打开预览，继续打磨细节"}</span>
+          <strong>{codeGenerated ? (running ? "代码已生成，正在准备运行与验证" : "代码已生成，运行验证尚未完成") : running ? "正在把想法变成应用" : failed ? "这一步需要处理" : "应用已完成构建"}</strong>
+          <span>{codeGenerated ? "源码已保存，可查看和下载；重试验证无需重新生成代码" : running ? "以下是真实执行进度" : failed ? "文件与执行记录已保留，可从失败阶段重试" : "可以打开预览，继续打磨细节"}</span>
         </div>
         {running ? <LoaderCircle size={15} className="animate-spin" /> : failed ? <AlertCircle size={16} /> : <Check size={16} />}
       </div>
@@ -127,7 +129,7 @@ export function GenerationSummary({ view, events, onOpenProcess, onCancel, onRet
       <div className="summary-actions">
         {onOpenProcess && <button onClick={onOpenProcess}>查看代码与执行记录 <ChevronRight size={12} /></button>}
         {running && onCancel && <button onClick={onCancel}>停止生成</button>}
-        {failed && onRetry && <button onClick={onRetry}>从{view.stage ? `「${STAGE_LABEL[view.stage as keyof typeof STAGE_LABEL] ?? view.stage}」` : "当前"}阶段重试</button>}
+        {failed && onRetry && <button onClick={onRetry}>{codeGenerated ? "仅重试运行验证" : `从${view.stage ? `「${STAGE_LABEL[view.stage as keyof typeof STAGE_LABEL] ?? view.stage}」` : "当前"}阶段重试`}</button>}
       </div>
     </div>
   );

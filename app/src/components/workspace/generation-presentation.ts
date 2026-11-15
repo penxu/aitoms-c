@@ -5,17 +5,17 @@ export type StudioEvent = GenerationEventPayload | CodeSnapshot;
 
 export const PUBLIC_STAGES = [
   { id: "discuss", label: "讨论方案", detail: "分析目标并确认关键需求" },
-  { id: "scaffold", label: "准备工程", detail: "初始化应用结构与运行环境" },
+  { id: "scaffold", label: "准备工程", detail: "创建工程目录与基础文件" },
   { id: "spec", label: "理解需求", detail: "整理页面、核心交互与数据需求" },
   { id: "plan", label: "规划结构", detail: "制定页面结构与文件实现方案" },
   { id: "build", label: "编写代码", detail: "逐步实现页面与应用功能" },
-  { id: "verify", label: "运行验证", detail: "执行构建与服务检查" },
+  { id: "verify", label: "运行验证", detail: "准备运行环境、安装依赖并检查服务" },
 ] as const;
 
 /** 每个阶段在界面上的一句人话说明（不用内部术语） */
 export const STAGE_ACTIVITY: Record<GenerationStage, string> = {
   discuss: "正在分析需求与关键决策",
-  scaffold: "正在准备工程骨架与运行环境",
+  scaffold: "正在准备工程目录与基础文件",
   spec: "正在理解需求，整理页面与交互",
   plan: "正在规划页面结构与文件方案",
   build: "正在逐个文件编写代码",
@@ -142,7 +142,7 @@ export function currentActivity(events: readonly StudioEvent[], stageHint?: stri
 }
 
 /** 阶段状态表：后到的事件覆盖先到的 */
-export function stageStates(events: readonly StudioEvent[]): Record<GenerationStage, "pending" | "running" | "done" | "failed"> {
+export function stageStates(events: readonly StudioEvent[], stageHint?: string | null): Record<GenerationStage, "pending" | "running" | "done" | "failed"> {
   const state: Record<GenerationStage, "pending" | "running" | "done" | "failed"> = {
     discuss: "pending",
     scaffold: "pending",
@@ -151,6 +151,10 @@ export function stageStates(events: readonly StudioEvent[]): Record<GenerationSt
     build: "pending",
     verify: "pending",
   };
+  // 仅验证重试的事件不含之前的文件生成阶段，持久化 verify 证明这些阶段已完成。
+  if (stageHint === "verify") {
+    for (const { id } of PUBLIC_STAGES) if (id !== "verify") state[id] = "done";
+  }
   for (const event of events) {
     if (event.type === "stage") state[event.stage] = event.status;
   }
@@ -158,10 +162,15 @@ export function stageStates(events: readonly StudioEvent[]): Record<GenerationSt
 }
 
 /** 进度占比：用于简洁的进度条，完成阶段数 / 总阶段数 */
-export function stageProgress(events: readonly StudioEvent[]): { done: number; total: number } {
-  const state = stageStates(events);
+export function stageProgress(events: readonly StudioEvent[], stageHint?: string | null): { done: number; total: number } {
+  const state = stageStates(events, stageHint);
   const ids = PUBLIC_STAGES.map((stage) => stage.id);
   return { done: ids.filter((id) => state[id] === "done").length, total: ids.length };
+}
+
+/** verify 仅在持久化代码生成完成后进入，刷新和重试不依赖旧文件事件。 */
+export function hasGeneratedCode(view: { stage: string | null; status: string } | null): boolean {
+  return view?.stage === "verify" && ["running", "failed", "interrupted", "cancelled"].includes(view.status);
 }
 
 /** 历史失败只在服务未恢复时占据预览；执行记录可由用户单独打开。 */

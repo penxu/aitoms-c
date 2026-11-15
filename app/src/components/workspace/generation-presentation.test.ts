@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import * as presentation from './generation-presentation.ts';
 import {
   currentActivity,
   stageStates, generationHealth, shouldShowGenerationTimeline,
@@ -10,6 +11,23 @@ import {
   writtenFiles,
   type StudioEvent,
 } from "./generation-presentation.ts";
+
+test('运行验证中或失败后可说明代码已生成，编写中断不能冒充完成',()=>{
+  const hasGeneratedCode=(presentation as unknown as {hasGeneratedCode?:(view:{stage:string|null;status:string}|null)=>boolean}).hasGeneratedCode;
+  assert.equal(typeof hasGeneratedCode,'function');
+  for(const status of ['running','failed','interrupted','cancelled'])assert.equal(hasGeneratedCode!({stage:'verify',status}),true);
+  for(const stage of ['discuss','scaffold','spec','plan','build'])assert.equal(hasGeneratedCode!({stage,status:'failed'}),false);
+  assert.equal(hasGeneratedCode!(null),false);
+  assert.equal(hasGeneratedCode!({stage:'verify',status:'ready'}),false);
+});
+
+test('刷新和仅验证重试时根据持久化阶段恢复已完成的代码阶段',()=>{
+  const events:StudioEvent[]=[{type:'stage',stage:'verify',status:'running'}];
+  const state=stageStates(events,'verify');
+  assert.equal(state.build,'done');assert.equal(state.plan,'done');assert.equal(state.verify,'running');
+  assert.deepEqual(stageProgress(events,'verify'),{done:5,total:6});
+  assert.equal(stageStates([],null).build,'pending');
+});
 
 test("first configured request starts the generation pipeline; later edits use chat", () => {
   assert.equal(inputDestination(true, true), "generate");

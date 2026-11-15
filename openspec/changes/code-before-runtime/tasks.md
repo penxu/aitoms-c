@@ -1,0 +1,4 @@
+- [ ] Make scaffold and early stage completion independent of execution backend.
+- [ ] Prepare runtime at verify and preserve recoverable errors and cancellation.
+- [ ] Show code-complete/verification-incomplete state and verification retry.
+- [ ] Verify regressions, existing preview protection, unit suite, typecheck, lint and build.

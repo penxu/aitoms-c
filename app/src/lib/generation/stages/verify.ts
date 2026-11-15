@@ -21,6 +21,7 @@ import { config } from "@/lib/config";
 import { addRunTokens } from "@/lib/db/generation";
 import { restartService } from "@/lib/runner";
 import { runCommand } from "@/lib/workspace/command";
+import { ensureWorkspaceRuntime } from "@/lib/workspace/execution";
 import { readFile, writeFile } from "@/lib/workspace/files";
 import { REPAIR_SYSTEM_PROMPT, repairUserPrompt } from "../prompts";
 import {
@@ -435,6 +436,16 @@ async function verifyProject(ctx: StageContext, dataDir: string): Promise<StageR
 /** Build-time data access must never touch preview or production databases. */
 export async function runVerifyStage(ctx: StageContext): Promise<StageResult> {
   if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+  ctx.log("info", "代码已生成并保存，正在准备运行环境；首次准备可能需要下载工具链");
+  try {
+    const runtime = await ensureWorkspaceRuntime(projectRoot(ctx.projectId), ctx.signal);
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    ctx.log("info", `运行环境已就绪（${runtime.backend}），开始安装依赖与验证`);
+  } catch (error) {
+    if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: `代码已生成并保存，运行环境准备失败：${message}。修复环境后可仅重试运行验证，无需重新生成代码。` };
+  }
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "atoms-verify-"));
   try {
     return await verifyProject(ctx, dataDir);

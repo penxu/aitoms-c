@@ -7,7 +7,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "@/lib/config";
 import { ensureProjectRoot, resolveInsideProject } from "@/lib/workspace/paths";
-import { commitAll, ensureGitRepo } from "./git";
 
 /**
  * SCAFFOLD 阶段：把模板整目录拷贝到项目工作区。
@@ -130,6 +129,8 @@ export async function scaffoldProject(projectId: string): Promise<ScaffoldResult
   const entries = fs.readdirSync(root).filter((name) => name !== ".git");
   const action: ScaffoldResult["action"] = entries.length === 0 ? "copied" : "merged";
 
+  // 在首个模板文件之前落盘标识，复制中断后可补齐；此阶段不探测执行环境。
+  fs.mkdirSync(resolveInsideProject(projectId, ".atoms", { allowMissing: true }), { recursive: true });
   let filesWritten = 0;
   for (const relative of listTemplateFiles()) {
     const target = resolveInsideProject(projectId, relative, { allowMissing: true });
@@ -137,13 +138,6 @@ export async function scaffoldProject(projectId: string): Promise<ScaffoldResult
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(source, relative), target);
     filesWritten += 1;
-  }
-
-  await ensureGitRepo(projectId);
-  await commitAll(projectId, "chore: 初始化工程骨架");
-
-  if (hasNodeModulesCache(projectId) && !fs.existsSync(path.join(root, "node_modules"))) {
-    await restoreNodeModulesCache(projectId);
   }
 
   return {

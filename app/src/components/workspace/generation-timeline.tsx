@@ -4,6 +4,7 @@ import type { DiscussionRecord } from "@/lib/generation/discussion-schema";
 import { useEffect, useMemo, useRef } from "react";
 import type { GenerationProgress } from "./generation-presentation";
 import { GenerationHealthNotice } from "./generation-health";
+import { hasGeneratedCode } from "./generation-presentation";
 import {
   STAGE_ORDER,
   STAGE_ROLES,
@@ -42,9 +43,10 @@ const STAGE_LABEL: Record<GenerationStage, string> = {
 const TERMINAL_RETRYABLE = new Set(["failed", "cancelled", "interrupted"]);
 
 /** 由事件流推导每个阶段的最终可见状态（后到的事件覆盖先到的） */
-function deriveStages(events: GenerationEventPayload[]): Record<GenerationStage, StageState> {
+function deriveStages(events: GenerationEventPayload[], stageHint?: string | null): Record<GenerationStage, StageState> {
   const state = {} as Record<GenerationStage, StageState>;
   for (const stage of STAGE_ORDER) state[stage] = { status: "pending" };
+  if (stageHint === "verify") for (const stage of STAGE_ORDER) if (stage !== "verify") state[stage] = { status: "done" };
   for (const event of events) {
     if (event.type !== "stage") continue;
     state[event.stage] = {
@@ -94,7 +96,8 @@ export function GenerationTimeline({
   /** 完成后回看记录时提供“返回预览” */
   onClose?: () => void;
 }) {
-  const stages = useMemo(() => deriveStages(events), [events]);
+  const stages = useMemo(() => deriveStages(events, view?.stage), [events, view?.stage]);
+  const codeGenerated = hasGeneratedCode(view);
   const runningStage = view?.status === "waiting" ? null : STAGE_ORDER.find((s) => stages[s].status === "running") ?? null;
   const runningRole = runningStage ? STAGE_ROLES[runningStage] : null;
   const status = view?.status ?? "running";
@@ -158,7 +161,7 @@ export function GenerationTimeline({
               onClick={onRetry}
               className="rounded-lg bg-[#4267ff] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#2f50f0]"
             >
-              从当前阶段重试
+              {codeGenerated ? "仅重试运行验证" : "从当前阶段重试"}
             </button>
           ) : null}
           {onClose && (
@@ -180,12 +183,12 @@ export function GenerationTimeline({
           </div>
         ) : status === "failed" ? (
           <div className="mb-3 rounded-xl border border-[#e5484d]/25 bg-[#e5484d]/6 px-3 py-2.5 text-[12.5px] text-[#c53b40]">
-            生成失败：{view?.error ?? "未知错误"}
+            {codeGenerated ? "代码已生成，运行验证尚未完成：" : "生成失败："}{view?.error ?? "未知错误"}
           </div>
         ) : status === "cancelled" || status === "interrupted" ? (
           <div className="mb-3 rounded-xl border border-black/10 bg-black/3 px-3 py-2.5 text-[12.5px] text-black/55">
             {status === "cancelled" ? "生成已取消。" : "平台重启导致生成中断。"}
-            已写入的文件会保留，可从失败阶段重试。
+            {codeGenerated ? "源码已保存，可仅重试运行验证，无需重新生成代码。" : "已写入的文件会保留，可从失败阶段重试。"}
           </div>
         ) : null}
 

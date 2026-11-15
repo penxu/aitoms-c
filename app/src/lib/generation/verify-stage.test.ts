@@ -18,6 +18,7 @@ for (const { cached, blocked } of [{ cached: true, blocked: false }, { cached: f
   let report: ReturnType<typeof createVerificationReport> | undefined;
   const js = stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm, "").replace(/^export \{[^\n]*\n/gm, "").replace(/^export /gm, "");
   const context = {
+    ensureWorkspaceRuntime:async()=>({backend:'native'}),
     AbortSignal, z, fs, path, os, infrastructureFailure, checkImportClosure:()=>[], prepareCandidate:async()=>({relativeRoot:".atoms/candidates/test",absoluteRoot:"/unused/candidate"}),checkCandidate:async()=>[], ensureProjectDependencies:async (_id:string,_signal:AbortSignal,env:Record<string,string>)=>{commands.push({command:"fixed-pnpm-cli install --no-frozen-lockfile --registry=https://registry.npmjs.org",env});return{exitCode:0,aborted:false}}, createVerificationReport, pnpmShellCommand: () => "fixed-pnpm-cli", config: { pnpmStoreDir: "/tmp/test-store" },
     withBuildSlot: async (action: () => Promise<unknown>) => {
       inBuildSlot = true;
@@ -60,4 +61,20 @@ for (const { cached, blocked } of [{ cached: true, blocked: false }, { cached: f
   assert.ok(commands.find(item => item.command.includes("tsc --noEmit"))?.command.startsWith("fixed-pnpm-cli "));
   assert.equal(report?.sourceHash, "source-hash");
   assert.equal(report?.businessVerified, false);
+});
+
+for(const cancelled of [false,true]) test(cancelled?'验证准备环境时取消，不继续安装和修复':'环境初始化失败保留代码并返回验证重试提示',async()=>{
+  const controller=new AbortController();
+  let installations=0,repairs=0,reports=0;
+  const js=stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm,'').replace(/^export \{[^\n]*\n/gm,'').replace(/^export /gm,'');
+  const api=vm.runInNewContext(`${js}\nrunVerifyStage`,{
+    fs,path,os,AbortSignal,z,projectRoot:()=> '/unused/project',
+    ensureWorkspaceRuntime:async()=>{if(cancelled)controller.abort();throw Error('Docker 工程工具链初始化超时');},
+    ensureProjectDependencies:async()=>{installations++;throw Error('Docker 工程工具链初始化超时');},
+    generateText:async()=>{repairs++;},writeFile:()=>{reports++;},
+  });
+  const result=await api({projectId:'p',runId:'r',signal:controller.signal,log(){},emit(){},plan:null});
+  assert.equal(result.ok,false);
+  assert.match(result.error,cancelled?/^cancelled$/:/代码已生成.*运行环境.*初始化超时.*重试/);
+  assert.equal(installations,0);assert.equal(repairs,0);assert.equal(reports,0);
 });
