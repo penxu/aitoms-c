@@ -12,14 +12,16 @@ const require = nodeModule.createRequire(import.meta.url);
 const { z } = require("zod");
 const source = fs.readFileSync(new URL("./stages/verify.ts", import.meta.url), "utf8");
 
-for (const { cached, blocked, mode } of [{ cached: true, blocked: false, mode:'full' }, { cached: false, blocked: false, mode:'full' }, { cached: false, blocked: true, mode:'full' },{cached:false,blocked:false,mode:'preview'}]) test(`VERIFY ${mode} ${cached ? "缓存" : "安装"}${blocked ? "识别外部拦截且不重复修复" : "与构建隔离数据并保存真实报告"}`, async () => {
+for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: false, mode:'full',homeTimeout:false }, { cached: false, blocked: false, mode:'full',homeTimeout:false }, { cached: false, blocked: true, mode:'full',homeTimeout:false },{cached:false,blocked:false,mode:'preview',homeTimeout:false},{cached:false,blocked:false,mode:'preview',homeTimeout:true}]) test(`VERIFY ${mode} ${cached ? "缓存" : "安装"}${homeTimeout?"首页超时不改写代码":blocked ? "识别外部拦截且不重复修复" : "与构建隔离数据并保存真实报告"}`, async () => {
   const commands: { command: string; env?: Record<string, string> }[] = [];
-  let inBuildSlot = false;
+  let inBuildSlot = false;const logs:string[]=[];let candidateCalls=0;
   let report: ReturnType<typeof createVerificationReport> | undefined;
   const js = stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm, "").replace(/^export \{[^\n]*\n/gm, "").replace(/^export /gm, "");
   const context = {
     ensureWorkspaceRuntime:async()=>({backend:'native'}),
-    AbortSignal, z, fs, path, os, infrastructureFailure, checkImportClosure:()=>[], prepareCandidate:async()=>({relativeRoot:".atoms/candidates/test",absoluteRoot:"/unused/candidate"}),checkCandidate:async()=>[], ensureProjectDependencies:async (_id:string,_signal:AbortSignal,env:Record<string,string>)=>{commands.push({command:"fixed-pnpm-cli install --no-frozen-lockfile --registry=https://registry.npmjs.org",env});return{exitCode:0,aborted:false}}, createVerificationReport, pnpmShellCommand: () => "fixed-pnpm-cli", config: {generationVerificationMode:mode, pnpmStoreDir: "/tmp/test-store" },
+    parseTscDiagnostics:()=>[],parseNextBuildDiagnostics:()=>[],resolveGeneratedDiagnostics:()=>[],collectExports:()=>[],repairUserPrompt:()=>'',REPAIR_SYSTEM_PROMPT:'',getModel:()=>({}),
+    generateText:async()=>{throw Error('fixture repair must not run on timeout');},
+    AbortSignal, z, fs, path, os, infrastructureFailure, checkImportClosure:()=>[], prepareCandidate:async()=>({relativeRoot:".atoms/candidates/test",absoluteRoot:"/unused/candidate"}),checkCandidate:async()=>{candidateCalls++;if(homeTimeout)throw Error("预览首页检查失败：PREVIEW-HOME: 首页访问检查超时 页面上下文：");return[];}, ensureProjectDependencies:async (_id:string,_signal:AbortSignal,env:Record<string,string>)=>{commands.push({command:"fixed-pnpm-cli install --no-frozen-lockfile --registry=https://registry.npmjs.org",env});return{exitCode:0,aborted:false}}, createVerificationReport, pnpmShellCommand: () => "fixed-pnpm-cli", config: {generationVerificationMode:mode, pnpmStoreDir: "/tmp/test-store" },
     withBuildSlot: async (action: () => Promise<unknown>) => {
       inBuildSlot = true;
       try { return await action(); } finally { inBuildSlot = false; }
@@ -38,7 +40,11 @@ for (const { cached, blocked, mode } of [{ cached: true, blocked: false, mode:'f
     writeFile: (_id: string, filename: string, text: string) => { if (filename === ".atoms/VERIFICATION.json") report = JSON.parse(text); },
   };
   const runVerifyStage = vm.runInNewContext(`${js}\nrunVerifyStage`, context);
-  const result = await runVerifyStage({ projectId: "test", runId: "run", signal: new AbortController().signal, log() {}, emit() {}, plan: null });
+  const result = await runVerifyStage({ projectId: "test", runId: "run", signal: new AbortController().signal, log:(_level:string,message:string)=>logs.push(message), emit() {}, plan: null });
+  if(homeTimeout){
+    assert.equal(result.ok,false);assert.match(result.error,/停止自动.*修改|不自动.*修改/);
+    assert.equal(candidateCalls,1);assert.doesNotMatch(logs.join("\n"),/进入第.*轮自动修复/);assert.equal(report,undefined);return;
+  }
   if (blocked) {
     assert.equal(result.ok, false);
     assert.match(result.error, /CodeBuddy.*确认/);

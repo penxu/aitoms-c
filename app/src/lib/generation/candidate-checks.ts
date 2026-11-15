@@ -9,6 +9,7 @@ import {config} from '@/lib/config';
 import {waitForHealth} from './health';
 import {runAcceptance,type AcceptanceCheck,type AcceptanceResult} from './acceptance';
 import {checkPreviewHome} from './preview-home';
+import {sanitizeInstallOutput} from './install-progress';
 import type {StageContext} from './types';
 
 /** 每项业务用例拥有独立数据库，刷新在同一用例内保持数据，其他用例从空库开始。 */
@@ -24,20 +25,41 @@ export async function checkCandidate(ctx:StageContext,relativeRoot:string,dataDi
   const databaseDir=path.join(attemptRoot,session);fs.mkdirSync(databaseDir,{recursive:true});
   const port=await allocatePort();const controller=new AbortController();
   const sessionSignal=AbortSignal.any([signal,controller.signal]);
-  let output='';
+  let output='',lastOutputAt=0;
+  let phase='等待候选服务健康接口（最多60秒）';
+  const progress=(message:string)=>{phase=message;ctx.log('info',message);};
+  progress(`启动候选${config.generationVerificationMode!=='full'?'开发':'生产'}服务，端口 ${port}`);
+  const started=Date.now();
   const development=config.generationVerificationMode !== 'full';
   const running=runCommand(ctx.projectId,`${pnpmShellCommand()} run ${development?'dev --webpack':'start'} -p ${port} -H 127.0.0.1`,{
    cwd:relativeRoot,signal:sessionSignal,timeoutMs:config.acceptanceTimeoutMs+60000,
+   onOutput:chunk=>{
+    output=(output+chunk).slice(-6000);
+    if(Date.now()-lastOutputAt>=2000){ctx.log('info',`预览服务输出：${sanitizeInstallOutput(output).trim().slice(-1200)}`);lastOutputAt=Date.now();}
+   },
    env:{PORT:String(port),HOSTNAME:'127.0.0.1',NODE_ENV:development?'development':'production',ATOMS_DATA_DIR:databaseDir,DATABASE_PATH:path.join(databaseDir,'app.db'),ATOMS_BASE_PATH:basePath,NEXT_PUBLIC_ATOMS_BASE_PATH:basePath},
   }).then(result=>{output=[result.stdout,result.stderr].join('\n');return result;});
+  const heartbeat=setInterval(()=>ctx.log('info',`${phase}；本次检查已用 ${Math.floor((Date.now()-started)/1000)} 秒`),10000);
   try {
+   progress('等待候选服务健康接口（最多60秒）');
    const healthy=await Promise.race([waitForHealth(port,60000,basePath,sessionSignal),running.then(()=>false)]);
    sessionSignal.throwIfAborted();
    if(!healthy){controller.abort();await running;throw Error(`候选服务未就绪：${output.slice(-6000)}`); }
    releasePortReservation(port);
-   if(development) return await checkPreviewHome(`http://127.0.0.1:${port}${basePath}`,sessionSignal,undefined,60000);
+   if(development) {
+    progress('健康接口已就绪，正在等待首页首次编译与响应（最多60秒）');
+    const home=await checkPreviewHome(`http://127.0.0.1:${port}${basePath}`,sessionSignal,undefined,60000);
+    return home.map(result=>result.status==='failed'?{...result,error:`${result.error}\n预览服务日志：${sanitizeInstallOutput(output).slice(-4000) || '尚无服务输出'}`}:result);
+   }
    return await runAcceptance(`http://127.0.0.1:${port}${basePath}`,checks,sessionSignal,undefined,config.browserChannel,config.chromiumPath,resolveInsideProject(ctx.projectId,`.atoms/acceptance/${ctx.runId}/${session}`,{allowMissing:true}));
-  }finally {controller.abort();try{await running;}finally{releasePortReservation(port);}}
+  }finally {
+   progress('正在停止临时检查服务');
+   controller.abort();
+   try{
+    const stopped=await running;
+    if(stopped.terminationUnconfirmed)ctx.log('warn',`临时检查进程关闭尚未确认：${sanitizeInstallOutput(stopped.stderr).slice(-2000)}`);
+   }finally{clearInterval(heartbeat);releasePortReservation(port);ctx.log('info','临时检查服务清理等待已结束');}
+  }
  };
  try {
   const full=config.generationVerificationMode === 'full';

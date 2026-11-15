@@ -29,6 +29,8 @@ export interface CommandResult {
   timedOut: boolean;
   /** 是否因 AbortSignal 被取消 */
   aborted: boolean;
+  /** 强制停止后仍未确认close；调用方必须保留此诊断。 */
+  terminationUnconfirmed?: boolean;
 }
 
 export function assertCommandAllowed(command: string): void {
@@ -79,6 +81,8 @@ export async function runCommand(
     let timedOut = false;
     let aborted = false;
     let settled = false;
+    let terminationUnconfirmed = false;
+    let closeDeadline: ReturnType<typeof setTimeout> | undefined;
 
     const killGroup = (signal: NodeJS.Signals) => {
       try {
@@ -93,10 +97,28 @@ export async function runCommand(
       }
     };
 
+    // 某些隔离启动器退出后，后代仍持有 stdio；不能无限等待 close。
+    const boundCloseWait = () => {
+      if (settled || closeDeadline) return;
+      closeDeadline = setTimeout(() => {
+        if (settled) return;
+        terminationUnconfirmed = true;
+        stderr += "\n已发送强制停止信号，但未收到子进程关闭事件，已结束工具等待；请检查隔离运行环境。";
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+        finish(null);
+      }, 1000);
+    };
+    const cleanExecution = () => {
+      try { execution.cleanup?.(); }
+      catch (error) { stderr += `\n隔离清理失败：${error instanceof Error ? error.message : String(error)}`; }
+    };
     const timer = setTimeout(() => {
       timedOut = true;
       killGroup("SIGKILL");
-      execution.cleanup?.();
+      boundCloseWait();
+      cleanExecution();
     }, timeoutMs);
 
     // 取消：先 SIGTERM 整个子进程组，3 秒后仍未退出则 SIGKILL
@@ -105,8 +127,8 @@ export async function runCommand(
       if (settled || aborted) return;
       aborted = true;
       killGroup("SIGTERM");
-      execution.cleanup?.();
-      killTimer = setTimeout(() => killGroup("SIGKILL"), 3000);
+      killTimer = setTimeout(() => { killGroup("SIGKILL"); boundCloseWait(); cleanExecution(); }, 3000);
+      cleanExecution();
       killTimer.unref?.();
     };
     opts.signal?.addEventListener("abort", onAbort, { once: true });
@@ -126,8 +148,9 @@ export async function runCommand(
     const finish = (exitCode: number | null) => {
       if (settled) return;
       settled = true;
-      execution.cleanup?.();
+      cleanExecution();
       clearTimeout(timer);
+      if (closeDeadline) clearTimeout(closeDeadline);
       if (killTimer) clearTimeout(killTimer);
       opts.signal?.removeEventListener("abort", onAbort);
       resolve({
@@ -136,6 +159,7 @@ export async function runCommand(
         exitCode,
         timedOut,
         aborted,
+        ...(terminationUnconfirmed ? {terminationUnconfirmed:true} : {}),
       });
     };
 

@@ -1,0 +1,3 @@
+# Bound preview waits
+
+The supplied online project has completed dependencies and TypeScript and remains at development-home inspection. Both remote health and generation requests time out, so target resource state remains unconfirmed. Local inspection exposes two independent missing hard bounds: a command timeout/abort only sends kill and waits forever for child close, and home response-header waiting relies exclusively on the transport honoring AbortSignal. Reproduce these failures, then bound cleanup/header waits and expose temporary server output and phase progress. Keep real HTML checks, isolation, rollback and full acceptance behavior.

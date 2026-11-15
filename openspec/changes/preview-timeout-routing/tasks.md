@@ -1,0 +1,4 @@
+- [x] Read online timeline and inspect homepage/data/stylesheet dependencies without modifying the server.
+- [x] Reproduce timeout auto-repair and missing child-output diagnostics in regression tests.
+- [x] Stop model edits for the specific homepage timeout and preserve bounded sanitized output.
+- [ ] Run complete regression, lint, build and typecheck; document remaining online diagnosis limits.

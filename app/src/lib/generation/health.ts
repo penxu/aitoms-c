@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import {withDeadline} from "./deadline.ts";
 
 /** Bound each request and the total wait, and promptly stop when the run is cancelled. */
 export async function waitForHealth(
@@ -10,15 +11,14 @@ export async function waitForHealth(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline && !signal?.aborted) {
     const remaining = deadline - Date.now();
-    const timeout = AbortSignal.timeout(Math.max(1, Math.min(5000, remaining)));
     try {
-      const response = await fetch(`http://127.0.0.1:${port}${basePath}/api/health`, {
-        cache: "no-store",
-        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      const healthy=await withDeadline(signal??new AbortController().signal,Math.max(1,Math.min(5000,remaining)),async requestSignal=>{
+        const response=await fetch(`http://127.0.0.1:${port}${basePath}/api/health`,{cache:"no-store",signal:requestSignal});
+        // 仅检查状态；释放响应，但取消正文也不能成为新的无限等待。
+        void response.body?.cancel().catch(()=>{});
+        return response.ok;
       });
-      // Drain responses so repeated probes can reuse connections.
-      await response.body?.cancel();
-      if (response.ok && !signal?.aborted) return true;
+      if(healthy&&!signal?.aborted)return true;
     } catch { /* Unready, timed out or cancelled. */ }
     if (signal?.aborted || Date.now() >= deadline) return false;
     try {

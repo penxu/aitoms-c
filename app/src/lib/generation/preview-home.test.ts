@@ -39,3 +39,13 @@ test('正文一直不结束时在期限内停止检查，即使请求实现忽�
  const result=await subject.checkPreviewHome('http://127.0.0.1:4000/p/project',new AbortController().signal,async()=>new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('<html>partial'));}}),{headers:{'content-type':'text/html'}}),20);
  assert.equal(result[0].status,'failed');assert.match(result[0].error??'',/超时/);
 });
+
+test('首页响应头一直不返回且忽略取消时也有硬截止时间',async()=>{
+ const subject=await import('./preview-home.ts');
+ let guard:ReturnType<typeof setTimeout>|undefined;
+ try{
+  const result=await Promise.race([subject.checkPreviewHome('http://127.0.0.1:4000/p/project',new AbortController().signal,async()=>new Promise<Response>(()=>{}),20),new Promise<'hung'>(resolve=>{guard=setTimeout(()=>resolve('hung'),150);})]);
+  assert.notEqual(result,'hung','响应头等待必须受硬截止时间保护');
+  if(result!=='hung'){assert.equal(result[0].status,'failed');assert.match(result[0].error??'',/超时/);}
+ }finally{clearTimeout(guard);}
+});

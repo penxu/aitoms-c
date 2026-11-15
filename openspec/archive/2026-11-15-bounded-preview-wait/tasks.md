@@ -1,0 +1,4 @@
+- [x] Reproduce ignored header/health aborts, stalled response cancellation, and launcher close never arriving.
+- [x] Add hard request deadlines, bounded forced-close waiting, and explicit uncertainty flags.
+- [x] Expose candidate startup/compile/cleanup progress and preserve cleanup warnings.
+- [x] Run final full regression, typecheck, lint and build; document target-environment limits.

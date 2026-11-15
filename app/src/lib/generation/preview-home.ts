@@ -13,7 +13,7 @@ export async function checkPreviewHome(baseUrl:string,signal:AbortSignal,request
     for(let redirects=0;redirects<=5;redirects++){
       deadline.throwIfAborted();
       if(url.origin!==base.origin || (url.pathname!==prefix&&!url.pathname.startsWith(`${prefix}/`))) throw Error('首页跳转超出当前应用');
-      const response=await request(url,{signal:deadline,redirect:'manual',cache:'no-store'});
+      const response=await withDeadline(deadline,timeoutMs,requestSignal=>request(url,{signal:requestSignal,redirect:'manual',cache:'no-store'}));
       const location=response.headers.get('location');
       const html=response.headers.get('content-type')?.toLowerCase().includes('text/html');
       if([301,302,303,307,308].includes(response.status)&&location){void response.body?.cancel().catch(()=>{});url=new URL(location,url);continue;}
