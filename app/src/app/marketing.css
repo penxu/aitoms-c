@@ -1662,8 +1662,15 @@
     transform: none;
   }
 }
+/*
+ * 滚动淡入：默认隐藏，由 JS 观察进入视口后加 .in 播放。
+ * 基类上的 animation-delay: 3s 是兜底——脚本未执行、水合失败或
+ * IntersectionObserver 不可用时，内容 3 秒后仍会自动显示，
+ * 不会让整段内容永久空白。JS 正常时 .in 会把延迟重置为 0。
+ */
 .atoms-landing .reveal {
   opacity: 0;
+  animation: landingFadeUp 0.7s ease 3s forwards;
 }
 .atoms-landing .reveal.in {
   animation: landingFadeUp 0.7s ease forwards;

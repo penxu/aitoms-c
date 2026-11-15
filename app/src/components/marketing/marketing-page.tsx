@@ -166,7 +166,12 @@ export function MarketingPage() {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    // 减少动效偏好或浏览器不支持 IntersectionObserver 时直接全部显示，
+    // 不依赖滚动观察，避免内容停留在初始的 opacity: 0。
+    if (
+      typeof IntersectionObserver === "undefined" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       root.querySelectorAll(".reveal").forEach((el) => el.classList.add("in"));
       return;
     }
