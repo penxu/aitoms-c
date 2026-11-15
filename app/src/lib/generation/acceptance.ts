@@ -92,10 +92,16 @@ export async function runAcceptance(baseUrl:string,checks:AcceptanceCheck[],sign
       const deadline=Date.now()+(step.method==='GET'?5000:0);
       while(true){
        signal.throwIfAborted();
-       const response=await page.request.fetch(baseUrl+step.path,{method:step.method,data:step.body});
-       const body=step.jsonContains?await response.json().catch(()=>null):undefined;
-       if(response.status()===step.expectStatus&&(!step.jsonContains||containsJson(body,step.jsonContains)))break;
-       if(step.method!=='GET'||Date.now()>=deadline)throw Error(`API ${step.path}: 状态 ${response.status()}，期望 ${step.expectStatus}；预期JSON ${JSON.stringify(step.jsonContains)}；实际JSON ${JSON.stringify(body)?.slice(0,2000)}`);
+       // 在页面中请求，继承浏览器对本地 Secure Cookie、同源及 mockRequest 的语义。
+       const response=await page.evaluate(async ({url,method,body})=>{
+        const result=await fetch(url,{method,credentials:"same-origin",...(body!==undefined&&method!=="GET"?{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{})});
+        const raw=await result.text();let parsed:unknown;
+        try{parsed=JSON.parse(raw);}catch{parsed=raw.slice(0,2000);}
+        return {status:result.status,body:parsed};
+       },{url:baseUrl+step.path,method:step.method,body:step.body});
+       const body=response.body;
+       if(response.status===step.expectStatus&&(!step.jsonContains||containsJson(body,step.jsonContains)))break;
+       if(step.method!=='GET'||Date.now()>=deadline)throw Error(`API ${step.path}: 状态 ${response.status}，期望 ${step.expectStatus}；预期JSON ${JSON.stringify(step.jsonContains)}；实际JSON ${JSON.stringify(body)?.slice(0,2000)}`);
        await delay(150,undefined,{signal});
       }
      }
