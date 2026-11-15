@@ -86,7 +86,8 @@ function loadPlanFromDisk(projectId: string): GenerationPlan {
   try {parsed=JSON.parse(fs.readFileSync(abs,"utf8"));}catch{throw new Error("实现计划文件不完整，请从计划阶段继续");}
   const validation=validatePlan(parsed,[...new Set([...listTemplateFiles(),...collectSource(resolveInsideProject(projectId,".")).map(file=>file.path)])]);
   const errors=[...validation.errors];
-  if(parsed.acceptance) errors.push(...validateAcceptance(parsed.acceptance));
+  if(config.generationVerificationMode === "full" && parsed.acceptance) errors.push(...validateAcceptance(parsed.acceptance));
+  if(config.generationVerificationMode !== "full") delete parsed.acceptance;
   let spec="";try{spec=readFile(projectId,".atoms/SPEC.md");}catch{}
   for(const route of requiredSpecRoutes(spec))if(!parsed.pages?.includes(route))errors.push(`缺少需求页面 ${route}`);
   if(errors.length)throw new Error(`实现计划已失效，请从计划阶段继续：${errors.join("；")}`);

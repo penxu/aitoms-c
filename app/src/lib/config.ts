@@ -11,6 +11,8 @@ export const config = {
   chromiumPath: process.env.CHROMIUM_PATH ?? "",
   browserChannel: process.env.BROWSER_CHANNEL ?? (process.platform === "darwin" ? "chrome" : ""),
   acceptanceTimeoutMs: Number(process.env.ACCEPTANCE_TIMEOUT_MS ?? 300_000),
+  /** 默认先交付可运行预览；完整业务浏览器验收由 full 显式开启。 */
+  generationVerificationMode: process.env.GENERATION_VERIFICATION_MODE === "full" ? "full" : "preview",
   portRangeMin: Number(process.env.PORT_RANGE_MIN ?? 4000),
   portRangeMax: Number(process.env.PORT_RANGE_MAX ?? 4999),
   /** 单轮对话等待上限，避免上游不返回时永久占用。 */

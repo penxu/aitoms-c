@@ -4,6 +4,13 @@ import type { GenerationEventPayload } from "./types.ts";
 
 type CodeEvent = Extract<GenerationEventPayload, { type: "code" }>;
 
+test('设置输出上限后拒绝超大流且不发完成事件',async()=>{
+ const {consumeTextPreview}=await import('./stream-preview.ts');const events:CodeEvent[]=[];
+ async function* stream(){yield '123';yield '456';}
+ await assert.rejects(consumeTextPreview({path:'.atoms/PLAN.json',stream:stream(),signal:new AbortController().signal,emit:e=>events.push(e),maxChars:5}),/输出.*上限/);
+ assert.equal(events.some(e=>e.status==='complete'),false);
+});
+
 test("真实文本首块立即发出，200ms内合并，最后发送清理后的累计快照", async () => {
   const subject = await import("./stream-preview.ts").catch(() => null);
   assert.ok(subject, "需要真实流预览消费者");

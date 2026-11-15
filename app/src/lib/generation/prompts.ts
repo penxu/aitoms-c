@@ -54,6 +54,10 @@ export const PLAN_SYSTEM_PROMPT = `你是架构师。根据需求规格和已有
 13. 每项用全新空数据库启动，步骤内刷新保留数据；用例不得依赖其他AC创建的记录。按钮名称必须唯一可访问（例如“将活着标记已读”“删除活着”），描述与步骤必须一致；回车必须press，删除必须expectAbsent，字段清空必须expectValue。禁止对全页expectAbsent("已读")等常驻指标文字：只断言目标书目独有文案的消失，状态用API jsonContains断言；数组按API实际排序规划。布局375/768/1440自动检查溢出，不要用文字断言冒充行为测试。
 14. 每项至少有expectText、expectAbsent、expectValue、expectRole、expectFocused或request断言，不能只点击没有结果；验收只在隔离测试库运行。表单需验证错误输入、真实提交、刷新后查询；游戏需验证开始与暂停等可观察状态。使用组件真实label/role/name，不要猜测不存在的选择器。注册、登录或异步提交后，在goto/reload或依赖登录的请求之前，必须expectText/expectRole等待该次操作的成功结果；不能用固定延时或依赖另一个验收用例的登录态。同一列表有多个同名入口时为每项设计唯一aria-label（例如“预约时段 1”）并按完整名称定位。超长输入必须实际超过SPEC规定的上限，不能仅用文案声称超长。mockRequest只拦截浏览器请求，不会拦截服务器组件直读数据库；需要可注入失败的列表时实现真实客户端加载和重试，禁止为测试而绕过认证。`;
 
+/** 预览路径不要求模型同时编排复杂浏览器脚本，业务功能要求仍保留。 */
+export const PREVIEW_PLAN_SYSTEM_PROMPT = PLAN_SYSTEM_PROMPT.split("\n11.")[0] +
+  "\n11. 本轮优先生成完整业务代码和可运行预览，只输出 pages、items、dataModel，不生成 acceptance 自动验收脚本。";
+
 export function planUserPrompt(spec: string, templateFiles: string[]): string {
   return `## 需求规格
 ${spec}

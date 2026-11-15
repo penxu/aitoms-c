@@ -20,4 +20,6 @@ Dockerfile 包含这些工具及 Chromium，保留运行期 TypeScript AST 依�
 
 缓存按实际 package.json、pnpm lockfile、目标 Node 版本、平台架构、执行后端和不可变镜像 ID 区分，macOS native 依赖不能直接供 Linux 容器使用。依赖脚本只在隔离中运行；无预编译二进制时镜像需要 Python/C++ 工具链。默认自动派生的工具链镜像提供 Python/C++；自定义镜像需要自行提供 git 与编译工具。
 
-浏览器验收设置 `CHROMIUM_PATH=/usr/bin/chromium`。浏览器工具缺失应报告未验证，不能把静态 HTTP 检查当成浏览器验收通过。
+默认 `GENERATION_VERIFICATION_MODE=preview`：安装依赖、构建、启动隔离服务并检查真实 HTTP 首页，Chromium 和业务脚本不阻断预览。首页须返回 HTML，跳转限制在同一应用内。报告仅声明技术预览通过，不声明浏览器渲染或业务验收通过。
+
+需要完整验收时显式设 `GENERATION_VERIFICATION_MODE=full`，并设置 `CHROMIUM_PATH=/usr/bin/chromium`。该模式浏览器工具缺失应报告未验证，不能把静态 HTTP 检查当成浏览器验收通过。

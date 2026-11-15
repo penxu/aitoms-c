@@ -11,6 +11,7 @@ interface TextPreviewInput {
   emit: (event: CodeEvent) => void;
   normalize?: (text: string) => string;
   now?: () => number;
+  maxChars?: number;
 }
 
 function nextWithAbort(iterator: AsyncIterator<string>, signal: AbortSignal): Promise<IteratorResult<string>> {
@@ -52,6 +53,7 @@ export async function consumeTextPreview(input: TextPreviewInput): Promise<strin
       input.signal.throwIfAborted();
       if (next.done) { finished = true; break; }
       if (!next.value) continue;
+      if (input.maxChars !== undefined && full.length + next.value.length > input.maxChars) throw new Error(`模型输出超过 ${input.maxChars} 字符上限，请缩小本轮计划`);
       full += next.value;
       const elapsed = now() - lastEmit;
       if (elapsed >= SNAPSHOT_INTERVAL_MS) snapshot("streaming");

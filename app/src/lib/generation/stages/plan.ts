@@ -3,14 +3,16 @@ import {collectSource} from "@/lib/packages/source";
 import {collectExports} from "../source-index";
 import { validateAcceptance, type AcceptanceCheck } from "../acceptance";
 import { config } from "@/lib/config";
-import { generateText } from "ai";
+import { streamText } from "ai";
 import { z } from "zod";
 import { getModel } from "@/lib/ai/model";
 import { addRunTokens } from "@/lib/db/generation";
 import { readFile, writeFile } from "@/lib/workspace/files";
 import { PLAN_JSON_PATH, requiredSpecRoutes, validatePlan } from "../plan-schema";
 import { extractJson } from "../model-output";
-import { PLAN_SYSTEM_PROMPT, planUserPrompt } from "../prompts";
+import { PLAN_SYSTEM_PROMPT, PREVIEW_PLAN_SYSTEM_PROMPT, planUserPrompt } from "../prompts";
+import { consumeTextPreview } from "../stream-preview";
+import { withDeadline } from "../deadline";
 import { listTemplateFiles } from "../scaffold";
 import type { GenerationPlan, StageContext, StageResult } from "../types";
 
@@ -43,21 +45,63 @@ function shortenSpec(spec: string): string {
 async function generatePlanObject(
   ctx: StageContext,
   prompt: string,
-): Promise<{ ok: true; object: unknown } | { ok: false; error: string }> {
+): Promise<{ ok: true; object: unknown } | { ok: false; error: string; retryable?: boolean }> {
+  const controller = new AbortController();
+  // SDK 的 firstChunkMs 在上游响应头之后开始；额外限制请求发出后的首次输出等待。
+  const firstTimer = setTimeout(() => controller.abort(new Error("规划模型首次响应超时，请稍后从规划结构重试")), config.modelFirstChunkTimeoutMs);
+  let firstOutput = true;
+  let lastProgress = 0;
+  let text: string;
   try {
-    const result = await generateText({
+    const result = streamText({
       model: getModel("plan"),
-      system: PLAN_SYSTEM_PROMPT,
+      system: config.generationVerificationMode === "full" ? PLAN_SYSTEM_PROMPT : PREVIEW_PLAN_SYSTEM_PROMPT,
       prompt,
       temperature: 0.2,
-      abortSignal: ctx.signal,
+      maxRetries: 0,
+      abortSignal: AbortSignal.any([ctx.signal, controller.signal]),
       timeout: { totalMs: config.generationModelTimeoutMs, firstChunkMs: config.modelFirstChunkTimeoutMs, chunkMs: config.modelChunkTimeoutMs },
+      onChunk: ({ chunk }) => {
+        // SDK 也发送 start/error 等事件；它们不能证明模型已返回有效输出。
+        if (chunk.type === "text-delta" || chunk.type === "reasoning-delta") clearTimeout(firstTimer);
+      },
+      // AI SDK 7 的 textStream 过滤 error 事件，必须显式转为中止，防止等待元数据悬挂。
+      onError: ({ error }) => controller.abort(error),
+      onAbort: () => controller.abort(new Error("规划模型输出中断或超时，请重试")),
     });
+    text = await consumeTextPreview({
+      path: PLAN_JSON_PATH, stream: result.textStream,
+      signal: AbortSignal.any([ctx.signal, controller.signal]), maxChars: 250_000,
+      emit: event => {
+        const now = Date.now();
+        if (firstOutput || event.status === "complete" || now - lastProgress >= 5000) {
+          ctx.log("info", `正在接收文件规划：${event.totalChars ?? 0} 字符${event.status === "complete" ? "，开始校验实现结构" : ""}`);
+          firstOutput = false; lastProgress = now;
+        }
+        if ((event.totalChars ?? 0) > 0) clearTimeout(firstTimer);
+      },
+    });
+    const [finishReason, usage] = await withDeadline(AbortSignal.any([ctx.signal, controller.signal]), config.modelChunkTimeoutMs,
+      async () => Promise.all([result.finishReason, result.usage]));
+    if (finishReason === "length") return { ok: false, error: "规划输出被模型长度限制截断，未保存不完整计划，请重试", retryable: false };
     addRunTokens(ctx.runId, {
-      input: result.usage.inputTokens,
-      output: result.usage.outputTokens,
+      input: usage.inputTokens,
+      output: usage.outputTokens,
     });
-    const parsed = zodPlanSchema.safeParse(extractJson(result.text));
+  } catch (error) {
+    const cause = controller.signal.aborted ? controller.signal.reason : error;
+    return { ok: false, error: cause instanceof Error ? cause.message : String(cause), retryable: false };
+  } finally {
+    clearTimeout(firstTimer);
+    controller.abort();
+  }
+  try {
+    const object = extractJson(text);
+    const full = config.generationVerificationMode === "full";
+    // 旧模型即使仍输出错误 acceptance，也不能使合法业务文件规划重新生成。
+    const candidate = !full && object && typeof object === "object" && !Array.isArray(object)
+      ? { ...object, acceptance: undefined } : object;
+    const parsed = zodPlanSchema.safeParse(candidate);
     if (!parsed.success) {
       return { ok: false, error: `结构不符：${parsed.error.issues[0]?.message ?? "未知字段错误"}` };
     }
@@ -73,6 +117,7 @@ async function generatePlanObject(
  */
 export async function runPlanStage(ctx: StageContext): Promise<StageResult> {
   ctx.log("info", "架构师 Bob 开始拆解文件级计划");
+  if (config.generationVerificationMode !== "full") ctx.log("info", "优先生成应用与预览，不等待自动业务验收计划");
 
   if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
 
@@ -107,16 +152,18 @@ export async function runPlanStage(ctx: StageContext): Promise<StageResult> {
     if (ctx.signal.aborted) return { ok: false, error: "cancelled" };
 
     if (!generated.ok) {
+      if (generated.retryable === false) return { ok: false, error: `规划模型请求未完成：${generated.error}。已保留需求，可从规划结构重试。` };
       errors = [`模型未返回合法 JSON：${generated.error}`];
       ctx.log("warn", `计划生成失败（第 ${attempt + 1} 次）：${generated.error}`);
       continue;
     }
 
     const object = generated.object as GenerationPlan;
-    const acceptanceErrors = validateAcceptance(object.acceptance);
+    const full = config.generationVerificationMode === "full";
+    const acceptanceErrors = full ? validateAcceptance(object.acceptance) : [];
     for(const route of requiredSpecRoutes(spec)) if(!object.pages.includes(route)) acceptanceErrors.push(`计划遗漏SPEC页面 ${route}`);
     const requiredIds = [...new Set(spec.match(/AC-\d+/g) ?? [])];
-    for (const id of requiredIds) if (!object.acceptance?.some(check => check.id === id)) acceptanceErrors.push(`缺少需求验收 ${id}`);
+    if (full) for (const id of requiredIds) if (!object.acceptance?.some(check => check.id === id)) acceptanceErrors.push(`缺少需求验收 ${id}`);
     if (acceptanceErrors.length) { errors = acceptanceErrors;ctx.log("warn", `验收计划不完整：${errors.join("；")}`);continue; }
     const validation = validatePlan(generated.object, availableFiles);
     if (validation.ok) {
