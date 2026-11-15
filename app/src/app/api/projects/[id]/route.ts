@@ -47,7 +47,7 @@ export async function DELETE(
   const result = deleteProject(id);
 
   if (result.ok) {
-    return NextResponse.json({ ok: true, releases: result.releases, runs: result.runs });
+    return NextResponse.json({ ok: true, releases: result.releases, runs: result.runs, warnings: result.warnings });
   }
 
   if (result.reason === "not-found") {

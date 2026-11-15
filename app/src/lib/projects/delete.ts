@@ -10,7 +10,7 @@ import { stopProduction } from "@/lib/releases/process";
 import { cancelGeneration } from "@/lib/generation/pipeline";
 
 export type DeleteProjectOutcome =
-  | { ok: true; releases: number; runs: number }
+  | { ok: true; releases: number; runs: number; warnings: string[] }
   | { ok: false; reason: "not-found" | "generating" | "releasing" };
 
 /**
@@ -47,10 +47,19 @@ export function deleteProject(projectId: string): DeleteProjectOutcome {
 
   const removeRows = sqlite.transaction(() => {
     const run = (sql: string, ...values: string[]) => sqlite.prepare(sql).run(...values);
+    // 检查点、文件基线、进度表都是首次生成时才懒创建的，早期项目可能还没有这些表。
+    const tryRun = (sql: string, ...values: string[]) => {
+      try { run(sql, ...values); } catch { /* 表不存在，跳过 */ }
+    };
     for (const threadId of threadIds) run("DELETE FROM messages WHERE thread_id=?", threadId);
     run("DELETE FROM messages WHERE project_id=?", projectId);
     run("DELETE FROM threads WHERE project_id=?", projectId);
-    for (const runId of runIds) run("DELETE FROM generation_events WHERE run_id=?", runId);
+    for (const runId of runIds) {
+      run("DELETE FROM generation_events WHERE run_id=?", runId);
+      tryRun("DELETE FROM generation_progress WHERE run_id=?", runId);
+    }
+    tryRun("DELETE FROM generation_file_checkpoints WHERE project_id=?", projectId);
+    tryRun("DELETE FROM generation_file_baselines WHERE project_id=?", projectId);
     run("DELETE FROM generation_runs WHERE project_id=?", projectId);
     run("DELETE FROM release_events WHERE release_id IN (SELECT id FROM releases WHERE project_id=?)", projectId);
     run("DELETE FROM release_processes WHERE project_id=?", projectId);
@@ -61,11 +70,16 @@ export function deleteProject(projectId: string): DeleteProjectOutcome {
   });
   removeRows();
 
-  safeRemove(workspaceDir, config.workspaceRoot);
-  safeRemove(path.join(deliveryRoot, "releases", projectId), path.join(deliveryRoot, "releases"));
-  safeRemove(path.join(deliveryRoot, "runtime", projectId), path.join(deliveryRoot, "runtime"));
+  // 磁盘残留必须能被调用方看到，否则用户会以为已经删干净。
+  const warnings: string[] = [];
+  const removeDir = (target: string, root: string) => {
+    if (!safeRemove(target, root)) warnings.push(path.resolve(target));
+  };
+  removeDir(workspaceDir, config.workspaceRoot);
+  removeDir(path.join(deliveryRoot, "releases", projectId), path.join(deliveryRoot, "releases"));
+  removeDir(path.join(deliveryRoot, "runtime", projectId), path.join(deliveryRoot, "runtime"));
 
-  return { ok: true, releases: releaseIds.length, runs: runIds.length };
+  return { ok: true, releases: releaseIds.length, runs: runIds.length, warnings };
 }
 
 /** 只允许删除 root 下的直接子目录，避免配错路径时误删父级 */

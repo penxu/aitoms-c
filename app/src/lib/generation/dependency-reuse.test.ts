@@ -46,7 +46,7 @@ test('复制到候选目录的匹配依赖不再调用pnpm重建',async()=>{
   for(const name of ['package.json','pnpm-lock.yaml','node_modules'])fs.cpSync(path.join(root,name),path.join(candidate,name),{recursive:true});
   let runs=0;
   const js=stripTypeScriptTypes(fs.readFileSync(new URL('./scaffold.ts',import.meta.url),'utf8')).replace(/^import[\s\S]*?;\n/gm,'').replace(/^export /gm,'');
-  const ensure=vm.runInNewContext(`${js}\nensureProjectDependencies`,{fs,path,config:{},resolveInsideProject:(_id:string,rel:string)=>rel==='.'?candidate:path.join(candidate,rel),ensureWorkspaceRuntime:async()=>runtime,workspaceExecutionRuntime:()=>runtime,...cache,installDependenciesCommand:()=> 'pnpm install',restoreNodeModulesCache:async()=>false,runCommand:async()=>{runs++;return{exitCode:0};}});
+  const ensure=vm.runInNewContext(`${js}\nensureProjectDependencies`,{fs,path,pruneInstalledDownloadCache:async()=>false,config:{},resolveInsideProject:(_id:string,rel:string)=>rel==='.'?candidate:path.join(candidate,rel),ensureWorkspaceRuntime:async()=>runtime,workspaceExecutionRuntime:()=>runtime,...cache,installDependenciesCommand:()=> 'pnpm install',restoreNodeModulesCache:async()=>false,runCommand:async()=>{runs++;return{exitCode:0};}});
   const result=await ensure('p');assert.equal(runs,0,'不能再次运行pnpm导致复制依赖被重建');assert.equal(result.exitCode,0);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });

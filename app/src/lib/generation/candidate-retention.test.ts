@@ -31,15 +31,15 @@ function fixture() {
     close: () => fs.rmSync(root, { recursive: true, force: true }) };
 }
 
-test('候选保留最近三份并删除旧依赖副本，工程源码和业务数据不动', async () => {
+test('候选默认仅保留最近一份并删除旧依赖副本，工程源码和业务数据不动', async () => {
   const f = fixture();
   try {
     for (let i = 1; i <= 6; i++) f.candidate(`run-${i}`, i);
     fs.writeFileSync(path.join(f.root, 'source.ts'), 'source'); fs.mkdirSync(path.join(f.root, 'data')); fs.writeFileSync(path.join(f.root, 'data/app.db'), 'data');
-    assert.deepEqual(Array.from(await f.prune('a')).sort(), ['.atoms/candidates/run-1','.atoms/candidates/run-2','.atoms/candidates/run-3']);
+    assert.deepEqual(Array.from(await f.prune('a')).sort(), ['.atoms/candidates/run-1','.atoms/candidates/run-2','.atoms/candidates/run-3','.atoms/candidates/run-4','.atoms/candidates/run-5']);
     assert.equal(fs.readFileSync(path.join(f.root, 'source.ts'), 'utf8'), 'source');
     assert.equal(fs.readFileSync(path.join(f.root, 'data/app.db'), 'utf8'), 'data');
-    assert.equal(fs.readdirSync(f.candidates).length, 3);
+    assert.equal(fs.readdirSync(f.candidates).length, 1);
   } finally { f.close(); }
 });
 

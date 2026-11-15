@@ -26,5 +26,6 @@ export function installDependenciesCommand(packages: string[] = [], frozen = fal
   }
   const action = packages.length ? `add -- ${packages.map(shellQuote).join(' ')}` : `install ${frozen ? '--frozen-lockfile' : '--no-frozen-lockfile'}`;
   // store 在隔离的项目 HOME 中，不与其他租户共享可写文件。
+  // 安装文件独立于下载仓库，成功后可安全回收仓库。
   return `${pnpmShellCommand()} --config.node-linker=hoisted --config.store-dir=.atoms/runtime/pnpm-store --package-import-method=copy --config.dangerouslyAllowAllBuilds=true --registry=${shellQuote(source.toString())} --reporter=append-only --fetch-retries=1 --fetch-timeout=30000 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=5000 ${action}`;
 }

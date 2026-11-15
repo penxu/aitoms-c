@@ -16,6 +16,7 @@ type Fakes = {
   threads?: string[];
   releaseProcesses?: string[];
   cancelling?: boolean;
+  rmError?: boolean;
 };
 
 function load(fakes: Fakes) {
@@ -44,7 +45,7 @@ function load(fakes: Fakes) {
   };
 
   const context = {
-    fs: { rmSync: (target: string) => removed.push(target) },
+    fs: { rmSync: (target: string) => { removed.push(target); if (fakes.rmError) throw new Error("EBUSY: resource busy"); } },
     path,
     console,
     config: { workspaceRoot: "/data/projects" },
@@ -61,6 +62,7 @@ function load(fakes: Fakes) {
     ok: boolean;
     reason?: string;
     releases?: number;
+    warnings?: string[];
   };
 
   return { deleteProject, statements, removed, killed };
@@ -76,6 +78,7 @@ test("删除项目：停进程、清全部关联记录、删三个目录", () =>
   const result = deleteProject("p1");
   assert.equal(result.ok, true);
   assert.equal(result.releases, 1);
+  assert.equal(result.warnings?.length, 0);
 
   assert.deepEqual(killed, ["service:p1", "release:rel_1"]);
   assert.deepEqual(removed, ["/data/projects/p1", "/data/releases/p1", "/data/runtime/p1"]);
@@ -85,6 +88,9 @@ test("删除项目：停进程、清全部关联记录、删三个目录", () =>
     "messages",
     "threads",
     "generation_events",
+    "generation_progress",
+    "generation_file_checkpoints",
+    "generation_file_baselines",
     "generation_runs",
     "release_events",
     "release_processes",
@@ -131,4 +137,12 @@ test("路径越界时拒绝 rmSync", () => {
   assert.equal(removed.includes("/etc"), false);
   // 仍然会清理 releases / runtime 这两个合法目录
   assert.deepEqual(removed, ["/data/releases/p1", "/data/runtime/p1"]);
+});
+
+test("目录删除失败时通过 warnings 暴露残留", () => {
+  const { deleteProject } = load({ rmError: true });
+  const result = deleteProject("p1");
+  assert.equal(result.ok, true);
+  assert.equal(result.warnings?.length, 3);
+  assert.ok(result.warnings?.every((item) => item.startsWith("/data/")));
 });

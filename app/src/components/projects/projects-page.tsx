@@ -88,10 +88,13 @@ export function ProjectsPage() {
     setError("");
     try {
       const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; warnings?: string[] };
       if (!res.ok) throw new Error(data.error ?? "删除失败，请重试。");
       setProjects((list) => list.filter((item) => item.id !== project.id));
       notifyProjectsChanged();
+      if (data.warnings?.length) {
+        setError(`项目记录已删除，但以下目录未能清理，请手动处理：${data.warnings.join("、")}`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "删除失败，请重试。");
     } finally {

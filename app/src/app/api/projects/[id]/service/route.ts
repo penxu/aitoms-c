@@ -1,8 +1,9 @@
+import {sanitizeInstallOutput} from "@/lib/generation/install-progress";
 import { refreshProjectPreview } from "@/lib/workspace/preview";
 import { acquireProjectMutation, ProjectBusyError } from "@/lib/workspace/mutations";
 import { infrastructureFailure } from "@/lib/generation/infrastructure-errors";
 import { NextResponse } from "next/server";
-import { getRuntimePort, stopService } from "@/lib/runner";
+import { getRuntimeLogs, getRuntimePort, stopService } from "@/lib/runner";
 import { getProject } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ export async function GET(
   return NextResponse.json({
     status: project.status,
     port,
+    output:sanitizeInstallOutput(getRuntimeLogs(id)),
     previewUrl: port ? `/p/${id}/` : null,
   });
 }

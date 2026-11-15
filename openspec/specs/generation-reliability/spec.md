@@ -134,3 +134,33 @@ The platform SHALL NOT infer a source defect solely from a PREVIEW-HOME response
 #### Scenario: Concrete source failure
 - **WHEN** a homepage returns HTTP500 or compilation/type diagnostics establish a code failure
 - **THEN** the ordinary repair policy SHALL remain available
+
+### Requirement: Direct development preview startup
+Default preview generation SHALL start one managed development service and return a preview entry when its loopback listener is reachable. It SHALL NOT start temporary acceptance services or send preparatory homepage/health HTTP requests. First browser access MAY trigger compilation; listener readiness SHALL NOT be reported as proven homepage or business success.
+
+#### Scenario: Slow first compilation
+- **WHEN** the development listener is available but the homepage has not compiled
+- **THEN** preview entry SHALL be returned, the UI SHALL show first-load preparation, and bounded sanitized process logs SHALL remain available including after a later process crash
+
+#### Scenario: Start or replacement fails
+- **WHEN** an owned development process fails before listening
+- **THEN** startup SHALL report actual diagnostics, retain process identity and cancellation protections, and preserve the existing rollback behavior
+
+#### Scenario: Explicit full verification
+- **WHEN** full verification is selected
+- **THEN** production build, temporary isolated checks and real HTTP readiness SHALL remain enabled
+
+### Requirement: Bounded disposable project artifacts
+Project preparation and successful preview replacement SHALL reclaim obsolete candidate dependency/build directories while preserving all runtime, recovery and rollback sources. Candidate dependency copies SHALL NOT share writable hardlink inodes. Failed preparation SHALL remove only its newly owned candidate when ownership and canonical path can be confirmed.
+
+#### Scenario: Repeated preview attempts
+- **WHEN** candidates are prepared or a preview replacement succeeds
+- **THEN** unprotected obsolete candidates SHALL be reclaimed instead of accumulating full dependency trees
+
+#### Scenario: Successful dependency installation
+- **WHEN** installation succeeds or a verified installed fingerprint is reused
+- **THEN** the independent per-project download store MAY be reclaimed, preserving installed modules, source, data, HOME and TMP
+
+#### Scenario: Background cache cleanup
+- **WHEN** startup maintenance scans projects
+- **THEN** it SHALL obtain the project mutation lease, reject symlinked cache paths, preserve runtime TMP/store for protected services and skip busy projects

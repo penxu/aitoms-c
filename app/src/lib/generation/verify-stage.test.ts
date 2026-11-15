@@ -18,7 +18,7 @@ for (const { cached, blocked, mode,homeTimeout } of [{ cached: true, blocked: fa
   let report: ReturnType<typeof createVerificationReport> | undefined;
   const js = stripTypeScriptTypes(source).replace(/^import[\s\S]*?;\n/gm, "").replace(/^export \{[^\n]*\n/gm, "").replace(/^export /gm, "");
   const context = {
-    ensureWorkspaceRuntime:async()=>({backend:'native'}),
+    pruneCandidates:async()=>[],ensureWorkspaceRuntime:async()=>({backend:'native'}),
     parseTscDiagnostics:()=>[],parseNextBuildDiagnostics:()=>[],resolveGeneratedDiagnostics:()=>[],collectExports:()=>[],repairUserPrompt:()=>'',REPAIR_SYSTEM_PROMPT:'',getModel:()=>({}),
     generateText:async()=>{throw Error('fixture repair must not run on timeout');},
     AbortSignal, z, fs, path, os, infrastructureFailure, checkImportClosure:()=>[], prepareCandidate:async()=>({relativeRoot:".atoms/candidates/test",absoluteRoot:"/unused/candidate"}),checkCandidate:async()=>{candidateCalls++;if(homeTimeout)throw Error("预览首页检查失败：PREVIEW-HOME: 首页访问检查超时 页面上下文：");return[];}, ensureProjectDependencies:async (_id:string,_signal:AbortSignal,env:Record<string,string>)=>{commands.push({command:"fixed-pnpm-cli install --no-frozen-lockfile --registry=https://registry.npmjs.org",env});return{exitCode:0,aborted:false}}, createVerificationReport, pnpmShellCommand: () => "fixed-pnpm-cli", config: {generationVerificationMode:mode, pnpmStoreDir: "/tmp/test-store" },

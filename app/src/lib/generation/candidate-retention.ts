@@ -6,7 +6,7 @@ import { getProtectedRuntimeSources } from "@/lib/runner";
 const candidatePrefix = ".atoms/candidates/";
 
 /** 仅回收平台候选目录；最近版本与运行/恢复/回滚源均保留。调用方应持有工程变更锁。 */
-export async function pruneCandidates(projectId: string, keep = 3, protectedRelative: string[] = []): Promise<string[]> {
+export async function pruneCandidates(projectId: string, keep = 1, protectedRelative: string[] = []): Promise<string[]> {
   if (!Number.isSafeInteger(keep) || keep < 0) throw new Error("候选保留数量无效");
   const root = fs.realpathSync(ensureProjectRoot(projectId));
   const protectedPaths = new Set<string>();

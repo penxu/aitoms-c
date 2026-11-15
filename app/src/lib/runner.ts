@@ -1,3 +1,4 @@
+import {RuntimeLogs} from "./workspace/runtime-logs";
 import { waitForPreviewSocket, waitForPreviewStart } from "./workspace/runtime-start";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
@@ -35,6 +36,7 @@ interface RuntimeEntry {
 }
 
 declare global {
+  var __atomsRuntimeLogs:RuntimeLogs|undefined;
   var __atomsRollbackSources: Map<string, string> | undefined;
   var __atomsRuntimeGate: RuntimeGate | undefined;
   var __atomsStoppingRuntimes: Map<string, ProcessIdentity> | undefined;
@@ -47,6 +49,8 @@ globalThis.__atomsRuntimes = runtimes;
 const gate = globalThis.__atomsRuntimeGate ??= new RuntimeGate();
 const identities = new RuntimeIdentities(sqlite);
 const stopping = globalThis.__atomsStoppingRuntimes ??= new Map<string, ProcessIdentity>();
+const runtimeLogs=globalThis.__atomsRuntimeLogs??=new RuntimeLogs();
+export function getRuntimeLogs(projectId:string):string{return runtimeLogs.read(projectId);}
 const rollbackSources = globalThis.__atomsRollbackSources ??= new Map<string, string>();
 
 function portAvailable(port: number): Promise<boolean> {
@@ -242,12 +246,14 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
     cleanup = execution.cleanup;
     child = spawn(execution.command, execution.args, { cwd, detached: true, env: execution.env, stdio: ["ignore", "pipe", "pipe"] });
     const ownedChild = child;
-    const capture = (chunk: Buffer) => { startupLog = (startupLog + chunk.toString()).slice(-8000); };
+    const logToken=runtimeLogs.begin(projectId);
+    const capture = (chunk: Buffer) => { startupLog = (startupLog + chunk.toString()).slice(-8000);runtimeLogs.append(projectId,logToken,chunk.toString()); };
     child.stdout?.on("data", capture);
     child.stderr?.on("data", capture);
-    child.once("error", error => { startupFailure = error.message; cleanExecution(); });
+    child.once("error", error => { startupFailure = error.message; runtimeLogs.append(projectId,logToken,`\n${error.message}`);cleanExecution(); });
     child.once("exit", code => {
       startupFailure = startupLog.trim() || `进程退出（${code ?? "signal"}）`;
+      runtimeLogs.append(projectId,logToken,`\n进程退出（${code ?? "signal"}）`);
       if (runtimes.get(projectId)?.child !== ownedChild) return;
       cleanupRuntime(projectId, runtimes.get(projectId));
       runtimes.delete(projectId);

@@ -1,0 +1,4 @@
+- [x] Default service readiness uses TCP only and is cancellable.
+- [x] Preview verification starts one managed service without temporary HTTP/browser checks.
+- [x] Reports/UI distinguish listening service from validated page and expose bounded sanitized logs.
+- [x] Tests, checks and review complete; online deployment remains external.

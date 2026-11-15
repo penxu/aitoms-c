@@ -1,3 +1,4 @@
+import {RuntimeLogs} from "../workspace/runtime-logs.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -43,6 +44,7 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
     './workspace/toolchain': { pnpmShellCommand: () => 'pnpm' },
     './workspace/ports': { findAvailablePort: options.allocate ?? findAvailablePort },
     '@/lib/workspace/paths': { ensureProjectRoot: () => '/tmp/project', resolveInsideProject: (_id: string, relative: string) => path.resolve('/tmp/project', relative) },
+    './workspace/runtime-logs':{RuntimeLogs},
     './workspace/runtime-gate': { RuntimeGate }, './workspace/runtime-identities': { RuntimeIdentities },
     './workspace/process-identity': { sameProcess, readProcessIdentity: (pid: number) => identities.get(pid) ?? null },
     './workspace/execution': { isWorkspaceExecutionRunning:()=>options.containerAlive??false, ensureWorkspaceRuntime: async () => {}, createWorkspaceExecution: (_root: string, command: string, env: Record<string,string>) => { runtimeEnv = env; return { command, args: [], env, cleanupId: '/tmp/project/.atoms/runtime/containers/fixture.cid', cleanup: () => { cleanups++; } }; }, cleanupWorkspaceExecution: () => { cleanups++; } },
@@ -60,6 +62,7 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
     startService: (id: string, options?: { sourceDir: string }) => Promise<{ port: number; pid: number }>;
     restartService: (id: string, options: { sourceDir: string; validate?: (result: { port: number; pid: number }) => Promise<void> }) => Promise<{ port: number; pid: number }>;
     getRuntimePort: (id:string)=>number|null;
+    getRuntimeLogs:(id:string)=>string;
     getProtectedRuntimeSources: (id: string) => string[];
     pinServiceToSnapshot: (id: string, createSnapshot: () => Promise<{relativeRoot:string}>) => Promise<unknown>;
     stopService: (id: string) => unknown; cleanupOrphans: () => string[];
@@ -224,3 +227,7 @@ test('Docker CLI退出后恢复仍存活容器，停止按容器身份清理且�
 test('full模式已构建Next候选启动生产产物',async()=>{const f=fixture({nextBuild:true,mode:'full'});try{const service=await f.api.startService('a');assert.match((service as unknown as {command:string}).command,/run start/);assert.equal(f.runtimeEnv().NODE_ENV,'production');assert.equal(f.httpChecks(),1);assert.equal(f.socketChecks(),0);f.api.stopService('a');}finally{f.db.close();}});
 
 test('默认Next预览即使有旧BUILD_ID也启动dev和development环境',async()=>{const f=fixture({nextBuild:true});try{const service=await f.api.startService('a');assert.match((service as unknown as {command:string}).command,/run dev --webpack/);assert.equal(f.runtimeEnv().NODE_ENV,'development');assert.equal(f.httpChecks(),0);assert.equal(f.socketChecks(),1);f.api.stopService('a');}finally{f.db.close();}});
+
+test('预览启动后继续保留编译与崩溃日志',async()=>{
+ const f=fixture();try{const service=await f.api.startService('a');const child=f.children.get(service.pid) as EventEmitter&{stdout:EventEmitter};child.stdout.emit('data',Buffer.from('Compiling /page ...'));assert.match(f.api.getRuntimeLogs('a'),/Compiling/);child.emit('exit',1);assert.match(f.api.getRuntimeLogs('a'),/Compiling/);assert.match(f.api.getRuntimeLogs('a'),/进程退出/);}finally{f.db.close();}
+});

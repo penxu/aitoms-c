@@ -1,3 +1,4 @@
+import {pruneCandidates} from "@/lib/generation/candidate-retention";
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,8 +29,10 @@ export async function refreshProjectPreview(projectId:string,signal?:AbortSignal
   }
   signal?.throwIfAborted();
   onProgress?.("候选依赖已就绪，正在启动并检查预览");
-  return restartService(projectId,{
+  const result=await restartService(projectId,{
     sourceDir:candidate.relativeRoot,
     validate:async(_result,serviceSignal)=>{signal?.throwIfAborted();serviceSignal.throwIfAborted();},
   });
+  try{await pruneCandidates(projectId,0);}catch(error){onProgress?.(`历史预览缓存暂未回收：${String(error)}`);}
+  return result;
 }

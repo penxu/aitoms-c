@@ -62,8 +62,13 @@ async function proxy(
   req.headers.forEach((value, key) => {
     if (!HOP_BY_HOP.has(key.toLowerCase())) headers.set(key, value);
   });
-  headers.set("x-forwarded-host", url.host);
-  headers.set("x-forwarded-proto", url.protocol.replace(":", ""));
+  // 预览是同源代理：上游必须看到本机身份。
+  // Next dev 会校验请求来源，若透传外部域名（如 zx.pengtech.top:3000），
+  // /_next/* 等开发资源会被 allowedDevOrigins 拦截，表现为本地 localhost 能打开、
+  // 线上用域名或公网 IP 打开时白屏或裸 HTML。
+  headers.set("x-forwarded-host", `127.0.0.1:${port}`);
+  headers.set("x-forwarded-proto", "http");
+  if (headers.has("origin")) headers.set("origin", `http://127.0.0.1:${port}`);
 
   const init: RequestInit = {
     method: req.method,

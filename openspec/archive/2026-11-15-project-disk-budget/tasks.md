@@ -1,0 +1,4 @@
+- [x] Test independent candidate files, reduced retention, failed-preparation cleanup and exact store-path safety.
+- [x] Reclaim installed download stores and old candidates without touching live preview or business data.
+- [x] Validate existing direct-start change and reconcile duplicate local readiness definition from interrupted work.
+- [x] Full tests/checks/review and measured local fixture disk reduction; document remote limits.

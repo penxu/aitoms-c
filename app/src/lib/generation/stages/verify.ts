@@ -1,3 +1,4 @@
+import {pruneCandidates} from "../candidate-retention";
 import { fileCheckpoints } from "../checkpoint-context";
 import { checkpointHash } from "../file-checkpoints";
 import { checkCandidate } from "../candidate-checks";
@@ -177,6 +178,7 @@ async function startDevelopmentPreview(ctx: StageContext, dataDir: string): Prom
     return { status: "failed", log: `[start]\n${error instanceof Error ? error.message : String(error)}` };
   }
 
+  try{await pruneCandidates(ctx.projectId,0);}catch(error){ctx.log("warn",`历史预览缓存暂未回收：${String(error)}`);}
   ctx.log("info", "开发预览已启动，页面编译完成后会自动显示");
   return { status: "ok", acceptance: [] };
 }
@@ -259,6 +261,7 @@ async function buildAndStart(ctx: StageContext, dataDir: string): Promise<Attemp
     return { status: "failed", log: `[start]\n${error instanceof Error ? error.message : String(error)}` };
   }
 
+  try{await pruneCandidates(ctx.projectId,0);}catch(error){ctx.log("warn",`历史预览缓存暂未回收：${String(error)}`);}
   return { status: "ok", acceptance };
 }
 

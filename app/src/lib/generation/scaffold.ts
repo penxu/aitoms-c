@@ -1,3 +1,4 @@
+import {pruneInstalledDownloadCache} from "./install-cache";
 import { dependencyFingerprint, prepareDependencyRuntime, isReusableDependencyTree, publishDependencyCache, restoreDependencyCache, hasInstalledDependencies } from "./dependency-cache";
 import { runCommand, type CommandResult } from "@/lib/workspace/command";
 import { installDependenciesCommand } from "@/lib/workspace/toolchain";
@@ -97,6 +98,7 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
   if(!packages.length && hasInstalledDependencies(root,executionRuntime)) {
     const stdout="依赖清单、锁文件与运行环境匹配，复用已安装依赖，无需重复下载";
     onProgress?.(stdout);
+    await reclaimInstallCache(root,onProgress);
     return {stdout,stderr:"",exitCode:0,timedOut:false,aborted:false};
   }
   onProgress?.("正在检查运行环境与依赖缓存");
@@ -114,6 +116,7 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
     }
     onProgress?.("依赖安装完成，正在保存可复用缓存");
     await saveNodeModulesCache(projectId,cwd);
+    await reclaimInstallCache(root,onProgress);
   }
   if(result.timedOut)result.stderr+= "\n依赖安装超过5分钟已终止；请查看最后日志，区分下载超时与原生模块编译失败。";
   return result;
@@ -154,4 +157,11 @@ export async function scaffoldProject(projectId: string): Promise<ScaffoldResult
     action: filesWritten === 0 ? "skipped" : action,
     filesWritten,
   };
+}
+
+async function reclaimInstallCache(root:string,onProgress?:(message:string)=>void):Promise<void>{
+  try{
+    onProgress?.("正在回收安装下载缓存，保留已安装依赖");
+    await pruneInstalledDownloadCache(root);
+  }catch(error){onProgress?.(`下载缓存暂未回收：${error instanceof Error?error.message:String(error)}`);}
 }

@@ -59,6 +59,7 @@ export function Workspace({
 }) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [status, setStatus] = useState(project.status);
+  const [runtimeLogs,setRuntimeLogs]=useState("");
   const [previewKey, setPreviewKey] = useState(0);
   const [running, setRunning] = useState(project.status === "running");
   const [busy, setBusy] = useState(false);
@@ -108,6 +109,7 @@ export function Workspace({
         const data = await infoRes.json();
         setStatus(data.status ?? "stopped");
         setRunning(Boolean(data.port));
+        setRuntimeLogs(typeof data.output==="string"?data.output.slice(-6000):"");
         // Keep an open preview stable while polling service status.
       }
     } catch {
@@ -552,7 +554,8 @@ export function Workspace({
                     onClose={recordView ? () => setRecordView(false) : undefined}
                   />
                 ) : running ? (
-                  <div className="relative h-full">
+                  <div className="flex h-full min-h-0 flex-col gap-2">
+                  <div className="relative min-h-0 flex-1">
                     <iframe
                       key={previewFrameKey}
                       src={`/p/${project.id}/`}
@@ -566,10 +569,12 @@ export function Workspace({
                         <div className="text-center">
                           <LoaderCircle className="mx-auto animate-spin text-[#4267ff]" size={22} />
                           <p className="mt-3 text-[13.5px] font-medium">正在准备页面…</p>
-                          <p className="mt-1 text-[12px] text-black/50">首次访问需要编译，通常 10–40 秒</p>
+                          <p className="mt-1 text-[12px] text-black/50">首次访问会编译页面，耗时取决于服务器负载</p>
                         </div>
                       </div>
                     )}
+                  </div>
+                    <RuntimeLogPanel output={runtimeLogs} />
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center">
@@ -578,6 +583,7 @@ export function Workspace({
                       <p className="mt-2 text-[13px] leading-relaxed text-black/55">
                         点击右上角「运行」，或让 AI 在对话中启动服务，即可在这里预览你的应用。
                       </p>
+                      {runtimeLogs&&<div className="mt-4 text-left"><RuntimeLogPanel output={runtimeLogs}/></div>}
                     </div>
                   </div>
                 )
@@ -826,4 +832,11 @@ function flatten(nodes: FileNode[]): FileNode[] {
   };
   visit(nodes);
   return out;
+}
+
+function RuntimeLogPanel({output}:{output:string}){
+  return <details className="flex-none rounded-xl border border-black/8 bg-white px-3 py-2 text-[12px]">
+    <summary className="cursor-pointer text-black/60">启动与编译日志</summary>
+    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-black/65">{output||"等待服务输出；日志每隔几秒自动更新。"}</pre>
+  </details>;
 }
