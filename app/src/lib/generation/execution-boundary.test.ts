@@ -158,11 +158,17 @@ test('创建隔离HOME前拒绝runtime目录符号链接逃逸',async()=>{
 
 test('原生编译工具可只读访问系统头文件与64位库目录',()=>{
  const js=stripTypeScriptTypes(fs.readFileSync(new URL('../workspace/execution.ts',import.meta.url),'utf8')).replace(/^import[^;]*;\n/gm,'').replace(/^export \{[^;]*;\n/gm,'').replace(/^export /gm,'');
- const create=vm.runInNewContext(`${js}\ncreateNativeExecution`,{path,fs:{existsSync:()=>true,realpathSync:(value:string)=>value},process:{platform:'linux',execPath:'/usr/bin/node'},pnpmCliPath:()=>'/platform/node_modules/pnpm/bin/pnpm.cjs',ensureRuntimeDirectory:(_root:string,relative:string)=>'/project/'+relative,spawnSync:()=>({status:0})});
+ const create=vm.runInNewContext(`${js}\ncreateNativeExecution`,{sharedDependencyMount:()=>null,path,fs:{existsSync:()=>true,realpathSync:(value:string)=>value},process:{platform:'linux',execPath:'/usr/bin/node'},pnpmCliPath:()=>'/platform/node_modules/pnpm/bin/pnpm.cjs',ensureRuntimeDirectory:(_root:string,relative:string)=>'/project/'+relative,spawnSync:()=>({status:0})});
  const result=create('/project','python3 --version');
  assert.equal(result.command,'/usr/bin/bwrap');
  for(const directory of ['/usr/include','/usr/local/include','/usr/lib64']){
    const index=result.args.indexOf(directory);assert.ok(index>0);
    assert.equal(result.args[index-1],'--ro-bind');assert.equal(result.args[index+1],directory);
  }
+});
+
+test('Linux只读共享挂载位于工程内，覆盖工程写挂载且不暴露缓存父目录',()=>{
+ const js=stripTypeScriptTypes(fs.readFileSync(new URL('../workspace/execution.ts',import.meta.url),'utf8')).replace(/^import[^;]*;\n/gm,'').replace(/^export \{[^;]*;\n/gm,'').replace(/^export /gm,'');
+ const create=vm.runInNewContext(`${js}\ncreateNativeExecution`,{sharedDependencyMount:()=>({source:'/trusted/cache/key/node_modules',target:'/project/node_modules',key:'fixture'}),path,fs:{existsSync:()=>true,realpathSync:(value:string)=>value},process:{platform:'linux',version:'v22',arch:'x64',execPath:'/usr/bin/node'},pnpmCliPath:()=>'/platform/node_modules/pnpm/bin/pnpm.cjs',ensureRuntimeDirectory:(_root:string,relative:string)=>'/project/'+relative,spawnSync:()=>({status:0})});
+ const invocation=create('/project','node app.js');const index=invocation.args.indexOf('/trusted/cache/key/node_modules');assert.equal(invocation.args[index-1],'--ro-bind');assert.equal(invocation.args[index+1],'/project/node_modules');assert.ok(index>invocation.args.indexOf('/project'));assert.equal(invocation.args.includes('/trusted/cache'),false);assert.equal(invocation.sharedDependencyKey,'fixture');
 });

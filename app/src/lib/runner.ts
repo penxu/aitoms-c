@@ -1,5 +1,6 @@
 import {RuntimeLogs} from "./workspace/runtime-logs";
 import {dependencyFingerprint} from "./generation/dependency-cache";
+import {sharedDependencyMount,reclaimSharedDependencyCopies} from './workspace/shared-dependencies';
 import { waitForPreviewSocket, waitForPreviewStart } from "./workspace/runtime-start";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
@@ -14,7 +15,7 @@ import { ensureProjectRoot, resolveInsideProject } from "@/lib/workspace/paths";
 import { RuntimeGate } from "./workspace/runtime-gate";
 import { RuntimeIdentities } from "./workspace/runtime-identities";
 import { readProcessIdentity, sameProcess, type ProcessIdentity } from "./workspace/process-identity";
-import { createWorkspaceExecution, ensureWorkspaceRuntime, cleanupWorkspaceExecution, isWorkspaceExecutionRunning } from "./workspace/execution";
+import { createWorkspaceExecution, ensureWorkspaceRuntime, workspaceExecutionRuntime, cleanupWorkspaceExecution, isWorkspaceExecutionRunning } from "./workspace/execution";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   getProcessByProject,
@@ -147,6 +148,10 @@ function sourceRoot(projectId: string, options: ServiceOptions): string {
   return cwd;
 }
 
+function runtimeDependencyKey(root:string):string {
+  return JSON.stringify([dependencyFingerprint(root),sharedDependencyMount(root,workspaceExecutionRuntime(root))?.key??null]);
+}
+
 function recoverRuntime(projectId: string): RuntimeEntry | undefined {
   const entry = runtimes.get(projectId);
   const saved=identities.get(projectId);
@@ -225,13 +230,13 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
   const previous = stopping.get(projectId);
   await waitForStopped(previous);
   if (stopping.get(projectId) === previous) stopping.delete(projectId);
+  await ensureWorkspaceRuntime(cwd,signal);
   const existing = recoverRuntime(projectId);
-  const dependencyKey=dependencyFingerprint(cwd);
+  const dependencyKey=runtimeDependencyKey(cwd);
   if (existing?.identity.cwd === cwd && (identities.get(projectId)?.dependencyKey??null)===dependencyKey) return { port: existing.port, pid: existing.identity.pid, command: "already-running" };
   // 跨源码目录或依赖变化也走切换事务；不能先丢掉旧候选再尝试启动。
   if (existing) return replaceCurrent(projectId,options,signal);
   signal.throwIfAborted();
-  await ensureWorkspaceRuntime(cwd, signal);
   signal.throwIfAborted();
   const port = await allocatePort();
   let child: ChildProcess | undefined;
@@ -270,7 +275,7 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
       signal.throwIfAborted();
     }
     if (!identity || identity.cwd !== cwd) throw new Error(`无法核对预览进程身份：${startupFailure ?? "工作目录或启动标识不可用"}`);
-    identities.save(projectId, identity, execution.cleanupId,dependencyFingerprint(cwd));
+    identities.save(projectId, identity, execution.cleanupId,runtimeDependencyKey(cwd));
     runtimes.set(projectId, { child, identity, port, startedAt: Date.now(), cleanup: cleanExecution });
     upsertProcess({ id: `proc_${projectId}`, projectId, pid: identity.pid, port, command });
     updateProjectStatus(projectId, "running", { assignedPort: port });
@@ -288,6 +293,8 @@ async function startCurrent(projectId: string, options: ServiceOptions, signal: 
       await waitForPreviewSocket(port, startupError, signal);
     }
     signal.throwIfAborted();
+    // 旧服务已停止，当前进程只读挂载共享源；此时才回收宿主上的独立副本。
+    try{await reclaimSharedDependencyCopies(cwd,execution.sharedDependencyKey);}catch(error){runtimeLogs.append(projectId,logToken,`\n旧依赖副本暂未回收：${String(error)}`);}
     return { port, pid: identity.pid, command };
   } catch (error) {
     if (child) {

@@ -1,4 +1,5 @@
 import { dockerCliEnvironment } from "./docker-environment.ts";
+import {sharedDependencyMount} from './shared-dependencies.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -67,7 +68,7 @@ export function dockerRuntime(image:string): ExecutionRuntime {
 }
 
 /** Docker CLI 为可信宿主进程；只有 --env 列出的工程环境才会进入容器。 */
-export function createContainerExecution(root:string,command:string,env:NodeJS.ProcessEnv,image:string): {command:string;args:string[];env:NodeJS.ProcessEnv;cleanupId:string;cleanup:()=>void} {
+export function createContainerExecution(root:string,command:string,env:NodeJS.ProcessEnv,image:string): {command:string;args:string[];env:NodeJS.ProcessEnv;cleanupId:string;cleanup:()=>void;sharedDependencyKey?:string} {
   const runtime=dockerRuntime(image);
   const immutableImage=runtime.image.slice(runtime.image.lastIndexOf("@")+1);
   const realRoot=fs.realpathSync(root);
@@ -79,8 +80,14 @@ export function createContainerExecution(root:string,command:string,env:NodeJS.P
     '--mount',`type=bind,src=${realRoot},dst=${realRoot}`,'--mount',`type=bind,src=${cliRoot},dst=${cliRoot},readonly`,
     '--tmpfs','/tmp:rw,nosuid,nodev,size=256m','--tmpfs','/run:rw,nosuid,nodev,size=16m','--workdir',realRoot];
   const containerEnv:NodeJS.ProcessEnv={...env,PATH:'/usr/local/bin:/usr/bin:/bin'};
+  const shared=sharedDependencyMount(realRoot,runtime);
+  if(shared)args.push('--mount',`type=bind,src=${shared.source},dst=${shared.target},readonly`);
   if(env.ATOMS_DATA_DIR) {
-    const data=fs.realpathSync(env.ATOMS_DATA_DIR);
+    const requested=path.resolve(env.ATOMS_DATA_DIR);
+    const relative=path.relative(realRoot,requested);
+    const data=relative&&!relative.startsWith(`..${path.sep}`)&&relative!=='..'&&!path.isAbsolute(relative)
+      ?ensureRuntimeDirectory(realRoot,relative.split(path.sep).join('/'))
+      :fs.realpathSync(requested);
     if(data!==realRoot && !data.startsWith(realRoot+path.sep))args.push('--mount',`type=bind,src=${data},dst=${data}`);
     // macOS /var 与 /private/var 是同一宿主路径，但 Linux 镜像没有该别名。
     containerEnv.ATOMS_DATA_DIR=data;
@@ -100,7 +107,7 @@ export function createContainerExecution(root:string,command:string,env:NodeJS.P
   }
   command=command.replaceAll(shellQuote(process.execPath),shellQuote('/usr/local/bin/node'));
   args.push(immutableImage,'/bin/bash','--noprofile','--norc','-c',command);
-  return {command:'docker',args,env:dockerEnvironment(),cleanupId,cleanup:()=>cleanupWorkspaceExecution(realRoot,cleanupId)};
+  return {command:'docker',args,env:dockerEnvironment(),cleanupId,cleanup:()=>cleanupWorkspaceExecution(realRoot,cleanupId),sharedDependencyKey:shared?.key};
 }
 
 /** cidfile 必须是工程中的普通文件，禁止以任意容器 ID 删除其他租户。 */

@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "@/lib/config";
+import {bindSharedDependencies,sharedDependencyMount,detachSharedDependencies,sharedDependencyCacheInUse,verifySharedDependencies} from "../workspace/shared-dependencies.ts";
 import { ensureProjectRoot, resolveInsideProject } from "@/lib/workspace/paths";
 
 /**
@@ -97,11 +98,14 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
   const modules=path.join(root,"node_modules");
   const executionRuntime=workspaceExecutionRuntime(root);
   const runtime=JSON.stringify(executionRuntime);
-  if(!packages.length && hasInstalledDependencies(root,executionRuntime)) {
+  const sharing=config.sharedTemplateDependencies===true&&config.templateDependencyReuse!==false&&executionRuntime.platform==='linux';
+  const installed=!packages.length&&hasInstalledDependencies(root,executionRuntime);
+  const reuseInstalled=()=>{
     const stdout="依赖清单、锁文件与运行环境匹配，复用已安装依赖，无需重复下载";
     onProgress?.(stdout);
     return {stdout,stderr:"",exitCode:0,timedOut:false,aborted:false,dependenciesChanged:false};
-  }
+  };
+  if(installed&&(!sharing||sharedDependencyMount(root,executionRuntime)))return reuseInstalled();
   if(!packages.length && config.templateDependencyReuse !== false) {
     try {
       const result=await reuseTemplateDependencies({
@@ -109,6 +113,11 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
         template:await fs.promises.readFile(path.join(templateDir(),"package.json"),"utf8"),
         runtime:templateRuntimeIdentity(executionRuntime),toolchain:await fs.promises.readFile(path.resolve(pnpmCliPath(),"../../package.json"),"utf8"),
         registry:config.packageRegistry,signal,onProgress,
+        share:sharing?async(_cache,key)=>{
+          bindSharedDependencies(root,key,executionRuntime);
+          if(!await verifySharedDependencies(root,executionRuntime,signal))throw Error('共享依赖完整性检查失败，改用项目独立安装');
+        }:undefined,
+        cacheInUse:sharing?sharedDependencyCacheInUse:undefined,
         // 隔离的临时项目不挂载到任何现有应用中，避免运行进程篡改全局缓存来源。
         createStage:async()=>{
           const stage=await fs.promises.mkdtemp(path.join(config.workspaceRoot,"atoms_template_"));
@@ -120,7 +129,7 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
         }),
       });
       if(result) {
-        writeInstalledMarker(root,runtime,true);
+        if(!sharing||!sharedDependencyMount(root,executionRuntime))writeInstalledMarker(root,runtime,true);
         await reclaimInstallCache(root,onProgress);
         return {...result,dependenciesChanged:true};
       }
@@ -130,6 +139,9 @@ export async function ensureProjectDependencies(projectId: string, signal?: Abor
       onProgress?.(`模板依赖未能复用，回退独立安装：${error instanceof Error?error.message:String(error)}`);
     }
   }
+  // 已定制但仍有效的独立依赖不能仅因尝试共享而重新安装。
+  if(installed)return reuseInstalled();
+  if(sharing)detachSharedDependencies(root);
   onProgress?.("正在检查运行环境与依赖缓存");
   // 模板快照的 pnpm store 位置属于已回收的独立预热工程；定制安装必须重新生成本项目的链接元数据。
   let templateInstalled=false;

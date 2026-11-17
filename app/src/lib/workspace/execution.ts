@@ -4,9 +4,10 @@ import { spawnSync } from 'node:child_process';
 import { pnpmCliPath } from './toolchain.ts';
 import { ensureRuntimeDirectory } from './runtime-directory.ts';
 import { config } from '../config.ts';
+import {sharedDependencyMount,verifySharedDependencies} from './shared-dependencies.ts';
 import { createContainerExecution, dockerRuntime, ensureContainerRuntime, type ExecutionRuntime } from './container-execution.ts';
 export { cleanupWorkspaceExecution, isWorkspaceExecutionRunning } from './container-execution.ts';
-export interface WorkspaceExecution {command:string;args:string[];env:NodeJS.ProcessEnv;cleanupId?:string;cleanup?:()=>void}
+export interface WorkspaceExecution {command:string;args:string[];env:NodeJS.ProcessEnv;cleanupId?:string;cleanup?:()=>void;sharedDependencyKey?:string}
 
 /** 仅把运行工具链所需变量带给工程；业务变量必须由调用者显式传入。 */
 export function workspaceEnvironment(root: string, extraEnv: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
@@ -50,8 +51,10 @@ function createNativeExecution(root: string, command: string, extraEnv: Record<s
     const args = ['--die-with-parent','--unshare-user','--new-session','--unshare-pid','--unshare-ipc','--unshare-uts','--proc','/proc','--dev','/dev','--tmpfs','/tmp'];
     for (const value of [...new Set(readRoots)].filter(value => value !== '/dev')) args.push('--ro-bind',value,value);
     for (const value of [...new Set(writeRoots)]) args.push('--bind',value,value);
+    const shared=sharedDependencyMount(realRoot,{node:process.version,platform:process.platform,arch:process.arch,backend:'native',image:''});
+    if(shared)args.push('--ro-bind',shared.source,shared.target);
     args.push('--chdir',realRoot,'--','/bin/bash','--noprofile','--norc','-c',command);
-    return checkedExecution({command:executable,args,env}, realRoot);
+    return {...checkedExecution({command:executable,args,env}, realRoot),sharedDependencyKey:shared?.key};
   }
   throw new Error(`安全隔离不支持当前系统 ${process.platform}，已拒绝执行工程命令`);
 }
@@ -85,16 +88,23 @@ export function workspaceExecutionRuntime(root:string):ExecutionRuntime {
 export async function ensureWorkspaceRuntime(root:string,signal?:AbortSignal):Promise<ExecutionRuntime> {
   signal?.throwIfAborted();
   if(config.workspaceExecutionBackend!=='docker') {
-    try {createNativeExecution(root,'/usr/bin/true');return {node:process.version,platform:process.platform,arch:process.arch,backend:'native',image:''};} catch(error) {
+    try {
+      const runtime={node:process.version,platform:process.platform,arch:process.arch,backend:'native',image:''};
+      await verifySharedDependencies(root,runtime,signal);
+      createNativeExecution(root,'/usr/bin/true');return runtime;
+    } catch(error) {
+      if(signal?.aborted)throw error;
       if(config.workspaceExecutionBackend==='native')throw error;
     }
   }
   const pending=ensureContainerRuntime(config.workspaceContainerImage);
-  if(!signal)return pending;
-  return new Promise((resolve,reject)=>{
+  const runtime=await (!signal?pending:new Promise<ExecutionRuntime>((resolve,reject)=>{
     const aborted=()=>reject(signal.reason??new Error('工程初始化已取消'));
     signal.addEventListener('abort',aborted,{once:true});
     pending.then(resolve,reject).finally(()=>signal.removeEventListener('abort',aborted));
     if(signal.aborted)aborted();
-  });
+  }));
+  signal?.throwIfAborted();
+  await verifySharedDependencies(root,runtime,signal);
+  return runtime;
 }

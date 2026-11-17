@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { pnpmCliPath } from "../workspace/toolchain.ts";
 import { workspaceExecutionRuntime } from "../workspace/execution.ts";
 import path from "node:path";
+import {sharedDependencyMount} from '../workspace/shared-dependencies.ts';
 
 /** pnpm 会重建 .bin；npm 的符号链接会让重建操作覆写真正的 JS 入口。 */
 export function isReusableDependencyTree(root: string): boolean {
@@ -58,6 +59,7 @@ export function dependencyFingerprint(root: string, runtime?: {node:string;platf
 /** 精确匹配已成功安装的清单与工具链；复制到候选后不再触发 pnpm 更换 store 重建。 */
 export function hasInstalledDependencies(root:string,runtime:NonNullable<Parameters<typeof dependencyFingerprint>[1]>):boolean {
   try {
+    if(sharedDependencyMount(root,runtime))return true;
     const modules=path.join(root,'node_modules');
     if(fs.lstatSync(modules).isSymbolicLink()||!isReusableDependencyTree(modules))return false;
     const marker=JSON.parse(fs.readFileSync(path.join(modules,'.atoms-runtime.json'),'utf8'));

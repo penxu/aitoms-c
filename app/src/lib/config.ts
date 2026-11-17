@@ -38,6 +38,11 @@ export const config = {
     : path.resolve(process.cwd(), "..", "templates"),
   /** 固定模板依赖预热与复用；关闭时保留独立安装链路。 */
   templateDependencyReuse: process.env.TEMPLATE_DEPENDENCY_REUSE !== "false",
+  /** 兼容模板在 Linux/Docker 中挂载只读共享依赖。 */
+  sharedTemplateDependencies: process.env.SHARED_TEMPLATE_DEPENDENCIES !== "false",
+  sharedDependencyDatabasePath: process.env.SHARED_DEPENDENCY_DATABASE_PATH
+    ? path.resolve(process.env.SHARED_DEPENDENCY_DATABASE_PATH)
+    : path.resolve(process.cwd(), "..", "data", "shared-dependencies.db"),
   /** 模板 node_modules 快照缓存根目录 */
   templateCacheRoot: process.env.TEMPLATE_CACHE_ROOT
     ? path.resolve(process.env.TEMPLATE_CACHE_ROOT)

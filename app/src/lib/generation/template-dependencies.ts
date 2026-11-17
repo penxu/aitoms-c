@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { ensureRuntimeDirectory } from '../workspace/runtime-directory.ts';
 import { copyDependencyTreeAsync, dependencyTreeDigest } from './dependency-copy.ts';
 import { isReusableDependencyTree } from './dependency-cache.ts';
+import {verifyImmutableDependencyTree} from './immutable-dependency-cache.ts';
 type InstallResult = {
     stdout: string;
     stderr: string;
@@ -29,6 +30,9 @@ interface Options extends CacheIdentity {
     /** 由平台创建独立临时项目，不能放在用户进程的可写挂载下。 */
     createStage: () => Promise<string>;
     install: (root: string) => Promise<InstallResult>;
+    /** 平台可信注册器负责只读挂载；不把外部路径写进项目文件。 */
+    share?: (cache:string,key:string)=>Promise<void>;
+    cacheInUse?: (key:string)=>boolean;
 }
 function canonical(value: unknown): string {
     if (Array.isArray(value))
@@ -69,7 +73,7 @@ async function ordinary(filename: string, kind: 'file' | 'directory'): Promise<b
         throw error;
     }
 }
-async function readCache(cache: string, key: string, signal?: AbortSignal): Promise<string | null> {
+async function readCache(cache: string, key: string, signal?: AbortSignal, shared=false): Promise<string | null> {
     if (!await ordinary(cache, 'directory'))
         return null;
     try {
@@ -82,8 +86,12 @@ async function readCache(cache: string, key: string, signal?: AbortSignal): Prom
         if (data.key !== key || !isReusableDependencyTree(path.join(cache, 'node_modules')))
             return null;
         const lockText = await fs.promises.readFile(lock, 'utf8');
-        if (data.lockHash !== createHash('sha256').update(lockText).digest('hex') || data.treeHash !== await dependencyTreeDigest(path.join(cache, 'node_modules'), signal))
+        if (data.lockHash !== createHash('sha256').update(lockText).digest('hex'))
             return null;
+        const valid=shared
+            ?await verifyImmutableDependencyTree(path.join(cache,'node_modules'),data.treeHash,createHash('sha256').update(JSON.stringify(data)+'\0'+lockText).digest('hex'),signal)
+            :data.treeHash===await dependencyTreeDigest(path.join(cache,'node_modules'),signal);
+        if(!valid)return null;
         return lockText;
     }
     catch (error) {
@@ -95,10 +103,12 @@ async function readCache(cache: string, key: string, signal?: AbortSignal): Prom
 const warming = new Map<string, Promise<string | null>>();
 async function prepareCache(options: Options, cache: string, key: string): Promise<string | null> {
     // 损坏缓存先隔离再回收；项目已经恢复的 CoW 副本不受影响。
-    const current = await readCache(cache, key, options.signal);
+    const current = await readCache(cache, key, options.signal,!!options.share);
     if (current !== null)
         return current;
     if (await ordinary(cache, 'directory')) {
+        // 不移走或删除现有进程正在挂载的目录；损坏时回退项目独立安装。
+        if(options.share)return null;
         const invalid = cache + '.invalid-' + randomUUID();
         try {
             await fs.promises.rename(cache, invalid);
@@ -107,6 +117,22 @@ async function prepareCache(options: Options, cache: string, key: string): Promi
         catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
                 throw error;
+        }
+    }
+    if(options.share){
+        const legacy=path.join(path.dirname(cache),'template-v1-'+key);
+        const lock=await readCache(legacy,key,options.signal);
+        if(lock!==null){
+            options.onProgress?.('正在将已有可信模板缓存提升为只读共享依赖，无需重新安装');
+            const temporary=await fs.promises.mkdtemp(cache+'.tmp-');
+            try{
+                await copyDependencyTreeAsync(path.join(legacy,'node_modules'),path.join(temporary,'node_modules'),options.signal);
+                await fs.promises.writeFile(path.join(temporary,'pnpm-lock.yaml'),lock);
+                await fs.promises.copyFile(path.join(legacy,'manifest.json'),path.join(temporary,'manifest.json'));
+                options.signal?.throwIfAborted();
+                try{await fs.promises.rename(temporary,cache);}catch(error){if(!await ordinary(cache,'directory'))throw error;}
+                return readCache(cache,key,options.signal,true);
+            }finally{await fs.promises.rm(temporary,{recursive:true,force:true});}
         }
     }
     const stage = await options.createStage();
@@ -145,7 +171,7 @@ async function prepareCache(options: Options, cache: string, key: string): Promi
             if (!await ordinary(cache, 'directory'))
                 throw error;
         }
-        return readCache(cache, key, options.signal);
+        return readCache(cache, key, options.signal,!!options.share);
     }
     finally {
         if (temporary)
@@ -181,12 +207,12 @@ export async function reuseTemplateDependencies(options: Options): Promise<Insta
     if (!await ordinary(options.cacheRoot, 'directory'))
         return null;
     const cacheRoot = await fs.promises.realpath(options.cacheRoot);
-    const key = templateDependencyKey(options), cache = path.join(cacheRoot, 'template-v1-' + key);
-    options.onProgress?.('正在校验统一模板依赖缓存完整性');
-    let lock = await readCache(cache, key, options.signal);
+    const key = templateDependencyKey(options), cache = path.join(cacheRoot, (options.share?'template-shared-v1-':'template-v1-') + key);
+    options.onProgress?.(options.share?'正在检查只读共享模板依赖':'正在校验统一模板依赖缓存完整性');
+    let lock = await readCache(cache, key, options.signal,!!options.share);
     if (lock === null) {
         // 有用户锁文件时，不为比较而冷安装模板，直接交还原安装流程。
-        if (hasLock)
+        if (hasLock&&!options.share)
             return null;
         let pending = warming.get(cache);
         const owner = !pending;
@@ -203,6 +229,15 @@ export async function reuseTemplateDependencies(options: Options): Promise<Insta
         return null;
     if (hasLock && await fs.promises.readFile(lockPath, 'utf8') !== lock)
         return null;
+    if(options.share){
+        let wroteLock=false;
+        try{
+            if(!hasLock){await fs.promises.writeFile(lockPath,lock,{flag:'wx'});wroteLock=true;}
+            options.signal?.throwIfAborted();
+            await options.share(cache,key);
+            return{stdout:'已关联只读共享依赖，无需复制node_modules，可直接启动开发预览',stderr:'',exitCode:0,timedOut:false,aborted:false};
+        }catch(error){if(wroteLock)await fs.promises.unlink(lockPath);throw error;}
+    }
     options.onProgress?.('命中统一模板依赖，正在写时复制恢复；无需再次下载或编译原生模块');
     // 恢复也在独立平台 staging 进行，用户运行进程不能替换复制中的目标路径。
     const stage = await options.createStage();

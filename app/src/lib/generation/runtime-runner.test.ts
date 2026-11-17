@@ -46,10 +46,11 @@ function fixture(options: { mode?:string; nextBuild?:boolean; containerAlive?:bo
     './workspace/ports': { findAvailablePort: options.allocate ?? findAvailablePort },
     '@/lib/workspace/paths': { ensureProjectRoot: () => '/tmp/project', resolveInsideProject: (_id: string, relative: string) => path.resolve('/tmp/project', relative) },
     './generation/dependency-cache':{dependencyFingerprint:()=>dependencyKey},
+    './workspace/shared-dependencies':{sharedDependencyMount:()=>null,reclaimSharedDependencyCopies:async()=>{}},
     './workspace/runtime-logs':{RuntimeLogs},
     './workspace/runtime-gate': { RuntimeGate }, './workspace/runtime-identities': { RuntimeIdentities },
     './workspace/process-identity': { sameProcess, readProcessIdentity: (pid: number) => identities.get(pid) ?? null },
-    './workspace/execution': { isWorkspaceExecutionRunning:()=>options.containerAlive??false, ensureWorkspaceRuntime: async () => {}, createWorkspaceExecution: (_root: string, command: string, env: Record<string,string>) => { runtimeEnv = env; return { command, args: [], env, cleanupId: '/tmp/project/.atoms/runtime/containers/fixture.cid', cleanup: () => { cleanups++; } }; }, cleanupWorkspaceExecution: () => { cleanups++; } },
+    './workspace/execution': { workspaceExecutionRuntime:()=>({node:'v22',platform:'linux',arch:'x64',backend:'native',image:''}),isWorkspaceExecutionRunning:()=>options.containerAlive??false, ensureWorkspaceRuntime: async () => {}, createWorkspaceExecution: (_root: string, command: string, env: Record<string,string>) => { runtimeEnv = env; return { command, args: [], env, cleanupId: '/tmp/project/.atoms/runtime/containers/fixture.cid', cleanup: () => { cleanups++; } }; }, cleanupWorkspaceExecution: () => { cleanups++; } },
     '@/lib/db/queries': {
       getProcessByProject: (id: string) => rows.get(id), listRunningProcesses: () => [...rows].filter(([, p]) => p.status === 'running').map(([projectId, p]) => ({ ...p, projectId })),
       updateProcessStatus: (id: string, status: string, opts: { clearPid?: boolean }) => { const row = rows.get(id); if (row) { row.status = status; if (opts?.clearPid) row.pid = null; } },

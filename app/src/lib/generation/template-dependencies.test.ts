@@ -177,3 +177,18 @@ test('缓存恢复取消不发布项目半成品，并保留完整缓存供下�
   assert.equal(f.installs(),1);
  }finally{f.cleanup();}
 });
+
+test('只读共享模式两个项目只准备一次缓存，零项目依赖复制，保留已有锁',async()=>{
+ const f=fixture();try{const a=f.project('shared-a'),b=f.project('shared-b'),bound:string[]=[];fs.writeFileSync(path.join(a,'pnpm-lock.yaml'),'lockfileVersion: 9\n');
+ const share=async(cache:string,key:string)=>{assert.ok(cache.endsWith('template-shared-v1-'+key));bound.push(cache);};
+ for(const root of [a,b]){assert.equal((await reuseTemplateDependencies({...f.options,root,share}))?.exitCode,0);assert.equal(fs.existsSync(path.join(root,'node_modules')),false);}
+ assert.equal(f.installs(),1);assert.equal(bound[0],bound[1]);assert.equal(fs.readFileSync(path.join(b,'pnpm-lock.yaml'),'utf8'),'lockfileVersion: 9\n');
+ }finally{f.cleanup();}
+});
+test('共享绑定失败回收本次新增锁文件，已有依赖不移动或删除',async()=>{
+ const f=fixture();try{const root=f.project('binding-fails');fs.mkdirSync(path.join(root,'node_modules'));fs.writeFileSync(path.join(root,'node_modules/keep'),'keep');await assert.rejects(reuseTemplateDependencies({...f.options,root,share:async()=>{throw Error('binding failed');}}),/binding failed/);assert.equal(fs.readFileSync(path.join(root,'node_modules/keep'),'utf8'),'keep');assert.equal(fs.existsSync(path.join(root,'pnpm-lock.yaml')),false);}finally{f.cleanup();}
+});
+
+test('升级共享模式可提升已有模板缓存，不重新下载或安装',async()=>{
+ const f=fixture();try{await reuseTemplateDependencies({...f.options,root:f.project('old-mode')});assert.equal(f.installs(),1);let shared=false;await reuseTemplateDependencies({...f.options,root:f.project('new-mode'),share:async()=>{shared=true;}});assert.equal(shared,true);assert.equal(f.installs(),1,'已有可信缓存应直接提升为共享缓存');}finally{f.cleanup();}
+});
